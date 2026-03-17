@@ -45,3 +45,12 @@ CREATE TABLE PageImage (
     FOREIGN KEY (PageId) REFERENCES Page(Id),
     FOREIGN KEY (ImageId) REFERENCES Image(Id)
 );
+
+-- Indexes for common lookups
+CREATE INDEX IX_User_Username ON User(Username);
+CREATE INDEX IX_Page_Slug ON Page(Slug);
+CREATE INDEX IX_Page_CreatedById ON Page(CreatedById);
+CREATE INDEX IX_PageContent_PageId ON PageContent(PageId);
+CREATE INDEX IX_Image_UploadedById ON Image(UploadedById);
+CREATE INDEX IX_PageImage_PageId ON PageImage(PageId);
+CREATE INDEX IX_PageImage_ImageId ON PageImage(ImageId);
