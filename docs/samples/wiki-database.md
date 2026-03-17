@@ -82,23 +82,43 @@ CREATE TABLE PageImage (
 
 ## Generating the Sample Database
 
-### Step 1: Create the database
+**Preferred:** Use `build-sample-wiki` to create the database in one step. This is the canonical way to build the sample and is integrated into CLI, NuGet API, and Service.
+
+### Option A: Build Sample Wiki (recommended)
+
+```bash
+sqltxt build-sample-wiki --db .
+```
+
+Creates `./WikiDb` with schema and seed data. Use `--db <path>` to specify the parent directory. Verbose output shows each step. The database is deleted and rebuilt if it already exists.
+
+**API / NuGet:**
+```csharp
+await SqlTxtApi.BuildSampleWikiAsync(path, new BuildSampleWikiOptions(Verbose: false, DeleteIfExists: true));
+```
+
+**Service:** Set environment variable `SQLTXT_BUILD_SAMPLE_WIKI` to the parent path to build on startup.
+
+### Option B: Manual steps
 
 ```bash
 sqltxt create-db ./WikiDb
-```
-
-### Step 2: Run the schema script
-
-```bash
 sqltxt script --db ./WikiDb docs/samples/wiki-database/create-wiki.sql
-```
-
-### Step 3: (Optional) Run the seed script
-
-```bash
 sqltxt script --db ./WikiDb docs/samples/wiki-database/seed-wiki.sql
 ```
+
+### Verify
+
+```bash
+sqltxt query --db ./WikiDb "SELECT * FROM Page"
+sqltxt query --db ./WikiDb "SELECT Id, PageId, Content FROM PageContent"
+```
+
+The seed data demonstrates CHAR field encoding: `\n` (newline) and `\t` (tab) in string literals are stored and decoded correctly. For example, PageContent row 1 has `Welcome to the sample Wiki.\n\nThis is the home page.` which displays with actual line breaks when queried.
+
+### Sample database lifecycle
+
+When new features are added to SQL.txt, rebuild the sample database to observe them in the generated files. Run `build-sample-wiki` after schema or behavior changes.
 
 ## Sample CLI Calls
 

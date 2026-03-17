@@ -57,5 +57,5 @@ Documentation must be organized by implemented features:
 | Getting Started | `docs/getting-started.md` |
 | API Reference | XML in source; generated output in `docs/api/` (when tooling added) |
 | CLI Reference | `docs/cli-reference.md` |
-| Feature Docs | `docs/features/` or inline in architecture/specs |
+| Feature Docs | `docs/features/` or inline in specifications |
 | Sample Database | `docs/samples/wiki-database.md` |

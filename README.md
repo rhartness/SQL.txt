@@ -70,7 +70,7 @@ dotnet test
 
 - [Getting Started](docs/getting-started.md) — Prerequisites, build, minimal example
 - [CLI Reference](docs/cli-reference.md) — Command-line usage
-- [Initial Creation Spec](docs/specs/01_Initial_Creation.md) — Full specification
+- [Initial Creation Spec](docs/specifications/01_Initial_Creation.md) — Full specification
 - [Architecture](docs/architecture/) — System design and storage format
 - [Sample Wiki Database](docs/samples/wiki-database.md) — Example schema and scripts
 - [Plans](docs/plans/) — Implementation plans

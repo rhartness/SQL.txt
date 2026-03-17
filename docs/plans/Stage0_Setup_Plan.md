@@ -2,7 +2,7 @@
 
 This plan establishes the full project foundation for **SQL.txt**, a lightweight, embeddable .NET database engine that persists data in human-readable text files. No functional code is created; only scaffolding, guidance, and documentation.
 
-**Reference:** [docs/specs/01_Initial_Creation.md](../specs/01_Initial_Creation.md)
+**Reference:** [docs/specifications/01_Initial_Creation.md](../specifications/01_Initial_Creation.md)
 
 ---
 
@@ -76,7 +76,7 @@ Create `.cursor/rules/` and add the following `.mdc` rule files:
   - Project context and goals
   - Phased development approach (Stage 0, Phase 1, 2, 3)
   - Prompt strategy: break work into small, testable chunks
-  - Reference to `docs/specs/01_Initial_Creation.md` and `docs/prompts/`
+  - Reference to `docs/specifications/01_Initial_Creation.md` and `docs/prompts/`
   - Instructions to avoid "build the whole engine" prompts; use bounded tasks
 
 ---
@@ -126,7 +126,7 @@ Create `.cursor/rules/` and add the following `.mdc` rule files:
 
 - [x] **13.1** Use the following prompt to generate the Phase 1 implementation plan:
 
-> **Prompt:** Using the plan at `docs/plans/Stage0_Setup_Plan.md` and the specs in `docs/specs/01_Initial_Creation.md`, create a new Phase 1 implementation plan.
+> **Prompt:** Using the plan at `docs/plans/Stage0_Setup_Plan.md` and the specs in `docs/specifications/01_Initial_Creation.md`, create a new Phase 1 implementation plan.
 >
 > The plan should:
 > - Be saved to `docs/plans/Phase1_Implementation_Plan.md`

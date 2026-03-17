@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\SqlTxt.Contracts\SqlTxt.Contracts.csproj" />
     <ProjectReference Include="..\..\src\SqlTxt.Parser\SqlTxt.Parser.csproj" />
   </ItemGroup>
 

@@ -524,8 +524,19 @@ DELETE FROM Users WHERE Id = '1';
 * identifiers may be case-preserving but normalized internally
 * **semicolon optional** — parser accepts statements with or without trailing semicolon
 * string literals single-quoted
-* no escaped quote support initially unless easy to include
-* no comments required in first parser wave
+* escape sequences in strings: `\n`, `\r`, `\t`, `\\`
+* **comments** — `--` to end of line; `/* */` block comments
+* **script execution** — batch separators: `;` (statement terminator) and `GO` (batch separator, T-SQL style)
+
+### Named Object Validation
+
+* **Tables, schemas, database names:** Letters, digits, underscore only. Cannot start with digit. Cannot be reserved keyword. File-system-unsafe characters (space, newline, quotes, etc.) throw clear errors.
+* **Columns:** Same rules, or use `[Column Name]` for names with spaces. Inside brackets: letters, digits, underscore, space. Use `[Name]` when the name contains spaces.
+* **Error messages:** Exact problem, e.g. `"Table name 'My Table' contains invalid character: space. Use only letters, digits, and underscores."`
+
+### Sample Database
+
+* **BuildSampleWiki** — Canonical API to build the sample Wiki database. Integrated into CLI (`build-sample-wiki`), NuGet API (`SqlTxtApi.BuildSampleWikiAsync`), and Service (env `SQLTXT_BUILD_SAMPLE_WIKI`). Rebuild when new features are added to observe them in generated files.
 
 ---
 
@@ -1255,7 +1266,7 @@ Documentation must include steps to generate the sample database and example CLI
 
 ## Cursor Prompt Strategy
 
-Break work into very small, testable chunks. Do not ask Cursor for “build the whole database engine.” Give it bounded tasks.
+Break work into very small, testable chunks. Do not ask Cursor for "build the whole database engine." Give it bounded tasks.
 
 ## Example Prompt Set
 

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\SqlTxt.Contracts\SqlTxt.Contracts.csproj" />
@@ -12,5 +12,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="EmbeddedScripts\CreateWiki.sql" />
+    <EmbeddedResource Include="EmbeddedScripts\SeedWiki.sql" />
+  </ItemGroup>
 
 </Project>

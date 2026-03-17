@@ -37,7 +37,7 @@
 
 ## Key References
 
-- **Full specification:** [docs/specs/01_Initial_Creation.md](docs/specs/01_Initial_Creation.md)
+- **Full specification:** [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md)
 - **Phase 1 prompts:** [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md)
 - **Architecture:** [docs/architecture/](docs/architecture/)
 - **Storage format:** [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md) — db/, Tables/, ~System/, sharding

@@ -1,0 +1,37 @@
+namespace SqlTxt.Contracts;
+
+/// <summary>
+/// Reads and writes table row data.
+/// </summary>
+public interface ITableDataStore
+{
+    /// <summary>
+    /// Appends a row to the table data file.
+    /// </summary>
+    /// <param name="databasePath">Path to database root.</param>
+    /// <param name="tableName">Table name.</param>
+    /// <param name="row">Row data (active).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="warnings">Optional list to collect truncation warnings.</param>
+    Task AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null);
+
+    /// <summary>
+    /// Reads all active rows from the table.
+    /// </summary>
+    IAsyncEnumerable<RowData> ReadRowsAsync(string databasePath, string tableName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads all rows (including deleted) for update/delete operations.
+    /// </summary>
+    Task<IReadOnlyList<(bool IsActive, RowData Row)>> ReadAllRowsWithStatusAsync(string databasePath, string tableName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Replaces all rows in the table data file (used after update/delete).
+    /// </summary>
+    /// <param name="databasePath">Path to database root.</param>
+    /// <param name="tableName">Table name.</param>
+    /// <param name="rows">Rows to write (active and deleted).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <param name="warnings">Optional list to collect truncation warnings.</param>
+    Task WriteAllRowsAsync(string databasePath, string tableName, IReadOnlyList<(bool IsActive, RowData Row)> rows, CancellationToken cancellationToken = default, List<string>? warnings = null);
+}

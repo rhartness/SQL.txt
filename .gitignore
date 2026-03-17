@@ -384,6 +384,10 @@ MSBuild_Logs/
 # Visual Studio History (VSHistory) files
 .vshistory/
 
+# SQL.txt sample database (built during dev/test)
+WikiDb/
+**/WikiDb/
+
 # BeatPulse healthcheck temp database
 healthchecksdb
 

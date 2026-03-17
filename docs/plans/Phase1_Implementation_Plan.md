@@ -2,7 +2,7 @@
 
 This plan implements the **Phase 1** minimal readable database engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE with fixed-width types (CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL).
 
-**Reference:** [docs/specs/01_Initial_Creation.md](../specs/01_Initial_Creation.md) (Phase 1 section)  
+**Reference:** [docs/specifications/01_Initial_Creation.md](../specifications/01_Initial_Creation.md) (Phase 1 section)  
 **Cursor prompts:** [docs/prompts/phase-1-cursor-prompts.md](../prompts/phase-1-cursor-prompts.md)  
 **Storage format:** [docs/architecture/02-storage-format.md](../architecture/02-storage-format.md)  
 **Design decisions:** [docs/decisions/adr-003-phase1-design-decisions.md](../decisions/adr-003-phase1-design-decisions.md)  
@@ -39,10 +39,10 @@ This plan implements the **Phase 1** minimal readable database engine: CREATE DA
 
 Stage 0 created the scaffolding. Verify and fix if needed.
 
-- [ ] **1.1** Verify solution builds: `dotnet build`
-- [ ] **1.2** Verify all test projects run: `dotnet test`
-- [ ] **1.3** Verify project references match layered architecture (Engine → Contracts, Core, Storage, Parser; CLI → Engine)
-- [ ] **1.4** Remove placeholder `PlaceholderTests.cs` only when real tests replace them (do not remove until Wave 8)
+- [x] **1.1** Verify solution builds: `dotnet build`
+- [x] **1.2** Verify all test projects run: `dotnet test`
+- [x] **1.3** Verify project references match layered architecture (Engine → Contracts, Core, Storage, Parser; CLI → Engine)
+- [x] **1.4** Remove placeholder `PlaceholderTests.cs` only when real tests replace them (do not remove until Wave 8)
 
 **Acceptance:** Solution builds with 0 errors; all placeholder tests pass.
 
@@ -52,13 +52,13 @@ Stage 0 created the scaffolding. Verify and fix if needed.
 
 Implement shared models and interfaces in SqlTxt.Contracts.
 
-- [ ] **2.1** Implement `TableDefinition`, `ColumnDefinition`, `ColumnType` (CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL)
-- [ ] **2.2** Implement `RowData` or equivalent row abstraction
-- [ ] **2.3** Implement `QueryResult`, `EngineResult` for execution output
-- [ ] **2.4** Implement command objects: `CreateDatabaseCommand` (with optional NumberFormat, TextEncoding), `CreateTableCommand`, `InsertCommand`, `SelectCommand`, `UpdateCommand`, `DeleteCommand`
-- [ ] **2.5** Implement exception hierarchy: `SqlTxtException`, `ParseException`, `SchemaException`, `ValidationException`, `StorageException`, `ConstraintViolationException` — all include file name, row, position when applicable
-- [ ] **2.6** Define core interfaces: `IDatabaseEngine` (async: `ExecuteAsync`, `ExecuteQueryAsync`, `OpenAsync`), `ICommandParser`, `ISchemaStore`, `ITableDataStore`, `IMetadataStore`, `IFileSystemAccessor`, `IRowSerializer`, `IRowDeserializer`, `IDatabaseLockManager` (Phase 1: simple mutex)
-- [ ] **2.7** Add `MaxShardSize` to table definition (per-table sharding parameter)
+- [x] **2.1** Implement `TableDefinition`, `ColumnDefinition`, `ColumnType` (CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL)
+- [x] **2.2** Implement `RowData` or equivalent row abstraction
+- [x] **2.3** Implement `QueryResult`, `EngineResult` for execution output
+- [x] **2.4** Implement command objects: `CreateDatabaseCommand` (with optional NumberFormat, TextEncoding), `CreateTableCommand`, `InsertCommand`, `SelectCommand`, `UpdateCommand`, `DeleteCommand`
+- [x] **2.5** Implement exception hierarchy: `SqlTxtException`, `ParseException`, `SchemaException`, `ValidationException`, `StorageException`, `ConstraintViolationException` — all include file name, row, position when applicable
+- [x] **2.6** Define core interfaces: `IDatabaseEngine` (async: `ExecuteAsync`, `ExecuteQueryAsync`, `OpenAsync`), `ICommandParser`, `ISchemaStore`, `ITableDataStore`, `IMetadataStore`, `IFileSystemAccessor`, `IRowSerializer`, `IRowDeserializer`, `IDatabaseLockManager` (Phase 1: simple mutex)
+- [x] **2.7** Add `MaxShardSize` to table definition (per-table sharding parameter)
 
 **Acceptance:** Contracts project compiles; types are immutable where reasonable; interfaces are usable by dependent projects.
 
@@ -70,15 +70,15 @@ Implement shared models and interfaces in SqlTxt.Contracts.
 
 Implement filesystem-backed storage per the db/, Tables/, ~System/ layout.
 
-- [ ] **3.1** Implement `IFileSystemAccessor` abstraction for file I/O (enables testability)
-- [ ] **3.2** Create database root folder (database name) and `db/` folder with `manifest.json` (include numberFormat, textEncoding)
-- [ ] **3.3** Create `Tables/` with one folder per table; each table folder contains `<TableName>.txt` (root data file)
-- [ ] **3.4** Create `~System/` folder for system metadata (tables, columns)
-- [ ] **3.5** Implement schema persistence: write schema to **both** ~System (master) and table folder (reference copy); read always from ~System
-- [ ] **3.6** Implement table metadata: ROW_COUNT, ACTIVE_ROW_COUNT, DELETED_ROW_COUNT, LAST_UPDATED_UTC
-- [ ] **3.7** Implement row serialization: fixed-width positional format with soft-delete marker (A| or D|); BIT as "1"/"0"; DECIMAL padded with zeros
-- [ ] **3.8** Ensure cross-platform paths (Windows, macOS, Linux)
-- [ ] **3.9** Add sharding support: when table data exceeds MaxShardSize, create new shard file
+- [x] **3.1** Implement `IFileSystemAccessor` abstraction for file I/O (enables testability)
+- [x] **3.2** Create database root folder (database name) and `db/` folder with `manifest.json` (include numberFormat, textEncoding)
+- [x] **3.3** Create `Tables/` with one folder per table; each table folder contains `<TableName>.txt` (root data file)
+- [x] **3.4** Create `~System/` folder for system metadata (tables, columns)
+- [x] **3.5** Implement schema persistence: write schema to **both** ~System (master) and table folder (reference copy); read always from ~System
+- [x] **3.6** Implement table metadata: ROW_COUNT, ACTIVE_ROW_COUNT, DELETED_ROW_COUNT, LAST_UPDATED_UTC
+- [x] **3.7** Implement row serialization: fixed-width positional format with soft-delete marker (A| or D|); BIT as "1"/"0"; DECIMAL padded with zeros
+- [x] **3.8** Ensure cross-platform paths (Windows, macOS, Linux)
+- [x] **3.9** Add sharding support: when table data exceeds MaxShardSize, create new shard file
 
 **Acceptance:** Creating a database produces correct directory structure; creating a table produces table folder and schema in both locations; inserting a row appends correctly formatted data.
 
@@ -90,15 +90,15 @@ Implement filesystem-backed storage per the db/, Tables/, ~System/ layout.
 
 Implement tokenizer and parser for Phase 1 SQL subset.
 
-- [ ] **4.1** Implement tokenizer: keywords, identifiers, literals (single-quoted strings), punctuation
-- [ ] **4.2** Parse `CREATE DATABASE <name> [WITH (numberFormat=..., textEncoding=...)];` — semicolon optional
-- [ ] **4.3** Parse `CREATE TABLE <name> (col1 type, col2 type, ...);` with CHAR(n), INT, TINYINT, BIGINT, BIT, DECIMAL(p,s)
-- [ ] **4.4** Parse `INSERT INTO <table> (cols) VALUES (vals);`
-- [ ] **4.5** Parse `SELECT <cols|*> FROM <table> [WHERE col = 'literal'];`
-- [ ] **4.6** Parse `UPDATE <table> SET col = 'literal' [, ...] [WHERE col = 'literal'];`
-- [ ] **4.7** Parse `DELETE FROM <table> [WHERE col = 'literal'];`
-- [ ] **4.8** Return strongly typed command objects from `ICommandParser`
-- [ ] **4.9** Report parse errors with line/column when possible via `ParseException`
+- [x] **4.1** Implement tokenizer: keywords, identifiers, literals (single-quoted strings), punctuation
+- [x] **4.2** Parse `CREATE DATABASE <name> [WITH (numberFormat=..., textEncoding=...)];` — semicolon optional
+- [x] **4.3** Parse `CREATE TABLE <name> (col1 type, col2 type, ...);` with CHAR(n), INT, TINYINT, BIGINT, BIT, DECIMAL(p,s)
+- [x] **4.4** Parse `INSERT INTO <table> (cols) VALUES (vals);`
+- [x] **4.5** Parse `SELECT <cols|*> FROM <table> [WHERE col = 'literal'];`
+- [x] **4.6** Parse `UPDATE <table> SET col = 'literal' [, ...] [WHERE col = 'literal'];`
+- [x] **4.7** Parse `DELETE FROM <table> [WHERE col = 'literal'];`
+- [x] **4.8** Return strongly typed command objects from `ICommandParser`
+- [x] **4.9** Report parse errors with line/column when possible via `ParseException`
 
 **Acceptance:** Parser returns correct command type for each statement; invalid syntax throws ParseException; WHERE supports equality-only.
 
@@ -110,14 +110,14 @@ Implement tokenizer and parser for Phase 1 SQL subset.
 
 Implement execution for CREATE DATABASE, CREATE TABLE, INSERT, SELECT.
 
-- [ ] **5.1** Implement `IDatabaseEngine` (or equivalent) as main entry point with async methods (`ExecuteAsync`, `ExecuteQueryAsync`, `OpenAsync`); support both explicit and relative paths (relative = current working directory)
-- [ ] **5.2** Implement basic locking: `IDatabaseLockManager` with single mutex per database; acquire before write, release after
-- [ ] **5.3** Execute `CREATE DATABASE`: create root folder, db/, manifest (with numberFormat, textEncoding), Tables/, ~System/
-- [ ] **5.4** Execute `CREATE TABLE`: create table folder, schema, metadata; register in ~System
-- [ ] **5.5** Execute `INSERT`: validate schema, columns, widths; append row to `<TableName>.txt`; update metadata
-- [ ] **5.6** Execute `SELECT`: read schema, scan data file, skip deleted rows, apply optional equality predicate, return projected columns
-- [ ] **5.7** Validate column widths before insert; reject values longer than defined width
-- [ ] **5.8** Use full table scan (no indexes in Phase 1)
+- [x] **5.1** Implement `IDatabaseEngine` (or equivalent) as main entry point with async methods (`ExecuteAsync`, `ExecuteQueryAsync`, `OpenAsync`); support both explicit and relative paths (relative = current working directory)
+- [x] **5.2** Implement basic locking: `IDatabaseLockManager` with single mutex per database; acquire before write, release after
+- [x] **5.3** Execute `CREATE DATABASE`: create root folder, db/, manifest (with numberFormat, textEncoding), Tables/, ~System/
+- [x] **5.4** Execute `CREATE TABLE`: create table folder, schema, metadata; register in ~System
+- [x] **5.5** Execute `INSERT`: validate schema, columns, widths; append row to `<TableName>.txt`; update metadata
+- [x] **5.6** Execute `SELECT`: read schema, scan data file, skip deleted rows, apply optional equality predicate, return projected columns
+- [x] **5.7** Validate column widths before insert; reject values longer than defined width
+- [x] **5.8** Use full table scan (no indexes in Phase 1)
 
 **Acceptance:** End-to-end: create db, create table, insert rows, select all, select with WHERE — all persist and return correct data.
 
@@ -129,10 +129,10 @@ Implement execution for CREATE DATABASE, CREATE TABLE, INSERT, SELECT.
 
 Extend engine for UPDATE and DELETE.
 
-- [ ] **6.1** Execute `UPDATE`: scan rows, match WHERE, rewrite/update row, enforce width validation
-- [ ] **6.2** Execute `DELETE`: scan rows, match WHERE, mark as deleted (D|) — soft delete
-- [ ] **6.3** Update metadata after insert, update, delete: ROW_COUNT, ACTIVE_ROW_COUNT, DELETED_ROW_COUNT, LAST_UPDATED_UTC
-- [ ] **6.4** SELECT skips rows with D| marker
+- [x] **6.1** Execute `UPDATE`: scan rows, match WHERE, rewrite/update row, enforce width validation
+- [x] **6.2** Execute `DELETE`: scan rows, match WHERE, mark as deleted (D|) — soft delete
+- [x] **6.3** Update metadata after insert, update, delete: ROW_COUNT, ACTIVE_ROW_COUNT, DELETED_ROW_COUNT, LAST_UPDATED_UTC
+- [x] **6.4** SELECT skips rows with D| marker
 
 **Acceptance:** UPDATE modifies matching rows; DELETE marks rows deleted; SELECT excludes deleted rows; metadata counts are correct.
 
@@ -142,9 +142,9 @@ Extend engine for UPDATE and DELETE.
 
 ## Wave 6.5: NuGet Packaging
 
-- [ ] **6.5.1** Add NuGet package project (SqlTxt.csproj) that packages Engine + Contracts, Core, Storage, Parser
-- [ ] **6.5.2** Configure package metadata (id: SqlTxt, version, description)
-- [ ] **6.5.3** Ensure CLI and SampleApp consume Engine via project reference (same as NuGet consumers would)
+- [x] **6.5.1** Add NuGet package project (SqlTxt.csproj) that packages Engine + Contracts, Core, Storage, Parser
+- [x] **6.5.2** Configure package metadata (id: SqlTxt, version, description)
+- [x] **6.5.3** Ensure CLI and SampleApp consume Engine via project reference (same as NuGet consumers would)
 
 **Acceptance:** `dotnet pack` produces SqlTxt.nupkg; package can be referenced by external projects.
 
@@ -154,12 +154,12 @@ Extend engine for UPDATE and DELETE.
 
 Implement CLI and update SampleApp.
 
-- [ ] **7.1** CLI: `create-db <path>` — create database
-- [ ] **7.2** CLI: `exec --db <path> "<statement>"` — execute single statement
-- [ ] **7.3** CLI: `query --db <path> "<select>"` — execute SELECT and print result grid
-- [ ] **7.4** CLI: `script --db <path> <file>` — execute script file
-- [ ] **7.5** CLI: `inspect --db <path>` — print tables, columns, row counts (optional)
-- [ ] **7.6** SampleApp: create database, create table, insert, select — demonstrate embedding
+- [x] **7.1** CLI: `create-db <path>` — create database
+- [x] **7.2** CLI: `exec --db <path> "<statement>"` — execute single statement
+- [x] **7.3** CLI: `query --db <path> "<select>"` — execute SELECT and print result grid
+- [x] **7.4** CLI: `script --db <path> <file>` — execute script file
+- [x] **7.5** CLI: `inspect --db <path>` — print tables, columns, row counts (optional)
+- [x] **7.6** SampleApp: create database, create table, insert, select — demonstrate embedding
 
 **Acceptance:** CLI can create db, run statements, run scripts; SampleApp demonstrates full flow.
 
@@ -171,13 +171,13 @@ Implement CLI and update SampleApp.
 
 **Test-first paradigm.** Full unit test coverage per functional implementation.
 
-- [ ] **8.1** Parser unit tests: tokenization, each statement type, error cases; high/low values, multiple inputs, unexpected data, exception paths
-- [ ] **8.2** Storage unit tests: schema serialization, row format, metadata (mock IFileSystemAccessor); all data types; edge cases
-- [ ] **8.3** Engine unit tests: validation, command execution (mocked storage); exception paths
-- [ ] **8.4** Integration tests: create temp db, create table, insert, select, update, delete, verify file contents
+- [x] **8.1** Parser unit tests: tokenization, each statement type, error cases; high/low values, multiple inputs, unexpected data, exception paths
+- [x] **8.2** Storage unit tests: schema serialization, row format, metadata (mock IFileSystemAccessor); all data types; edge cases
+- [x] **8.3** Engine unit tests: validation, command execution (mocked storage); exception paths
+- [x] **8.4** Integration tests: create temp db, create table, insert, select, update, delete, verify file contents
 - [ ] **8.5** Golden file tests (optional): known schema/data input → expected file output
-- [ ] **8.6** Replace or remove PlaceholderTests with real tests
-- [ ] **8.7** Test corrupted file handling: verify exceptions include file name, row number, character position
+- [x] **8.6** Replace or remove PlaceholderTests with real tests
+- [x] **8.7** Test corrupted file handling: verify exceptions include file name, row number, character position
 
 **Acceptance:** All tests pass; integration tests prove persisted text format matches spec; full coverage per function.
 
@@ -189,12 +189,12 @@ Implement CLI and update SampleApp.
 
 Improve robustness and error handling.
 
-- [ ] **9.1** Corruption handling: detect malformed schema, invalid metadata; when errors occur, provide file name, row number, character position (or closest)
-- [ ] **9.2** Exception messages: explain how user interaction (e.g., manual file edit) might have caused the issue
-- [ ] **9.3** Basic file locking on writes; Phase 1 uses `IDatabaseLockManager` (single-writer mutex); Phase 2 will add multi-reader + NOLOCK
-- [ ] **9.4** Clearer parser error messages (line, column, expected vs found)
-- [ ] **9.5** Expand test coverage for edge cases (empty table, max width, invalid paths)
-- [ ] **9.6** Update docs: Getting Started, CLI Reference, API docs per [05-documentation-standards.md](../architecture/05-documentation-standards.md)
+- [x] **9.1** Corruption handling: detect malformed schema, invalid metadata; when errors occur, provide file name, row number, character position (or closest)
+- [x] **9.2** Exception messages: explain how user interaction (e.g., manual file edit) might have caused the issue
+- [x] **9.3** Basic file locking on writes; Phase 1 uses `IDatabaseLockManager` (single-writer mutex); Phase 2 will add multi-reader + NOLOCK
+- [x] **9.4** Clearer parser error messages (line, column, expected vs found)
+- [x] **9.5** Expand test coverage for edge cases (empty table, max width, invalid paths)
+- [x] **9.6** Update docs: Getting Started, CLI Reference, API docs per [05-documentation-standards.md](../architecture/05-documentation-standards.md)
 
 **Acceptance:** Malformed input handled gracefully; parser errors are actionable; docs are current.
 
@@ -204,12 +204,14 @@ Improve robustness and error handling.
 
 ## Wave 10: Sample Wiki Verification
 
-- [ ] **10.1** Run `sqltxt create-db ./WikiDb`
-- [ ] **10.2** Run `sqltxt script --db ./WikiDb docs/samples/wiki-database/create-wiki.sql`
-- [ ] **10.3** Run `sqltxt script --db ./WikiDb docs/samples/wiki-database/seed-wiki.sql`
-- [ ] **10.4** Verify `sqltxt query --db ./WikiDb "SELECT * FROM Page;"` returns expected rows
+- [x] **10.0** Delete existing `./WikiDb` if present (rebuild from scratch); add WikiDb to .gitignore
+- [x] **10.1** Implement `BuildSampleWikiAsync` API (Engine, CLI, NuGet, Service)
+- [x] **10.2** Run `sqltxt build-sample-wiki --db .` (or manual create-db + script)
+- [x] **10.3** Verify `sqltxt query --db ./WikiDb "SELECT * FROM Page;"` returns expected rows
+- [x] **10.4** Verify `sqltxt query --db ./WikiDb "SELECT Id, PageId, Content FROM PageContent;"` returns rows with decoded newlines/tabs
+- [x] **10.5** Rebuild sample database when new features are added; verify new behavior in generated files
 
-**Acceptance:** Sample Wiki database creates and seeds successfully; queries return correct data.
+**Acceptance:** Sample Wiki database creates and seeds successfully; BuildSampleWiki is the canonical build method; queries return correct data; CHAR encoding round-trips correctly.
 
 ---
 
@@ -228,7 +230,7 @@ Improve robustness and error handling.
 
 - [ ] **11.1** When Phase 1 is complete, use the following prompt to generate the Phase 2 implementation plan:
 
-> **Prompt:** Using the plan at `docs/plans/Phase1_Implementation_Plan.md` and the specs in `docs/specs/01_Initial_Creation.md` (Phase 2 section), create a new Phase 2 implementation plan.
+> **Prompt:** Using the plan at `docs/plans/Phase1_Implementation_Plan.md` and the specs in `docs/specifications/01_Initial_Creation.md` (Phase 2 section), create a new Phase 2 implementation plan.
 >
 > The plan should:
 > - Be saved to `docs/plans/Phase2_Implementation_Plan.md`

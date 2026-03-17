@@ -1,119 +1,121 @@
-# CLI Reference
+# SQL.txt CLI Reference
 
-> **Status:** Placeholder. This document will be updated as the CLI is implemented.
+## Options
 
-## Overview
+### --wasm
 
-The SQL.txt CLI (`sqltxt`) provides command-line access to create databases, execute SQL.txt commands, and inspect metadata.
+Use WASM-compatible in-memory storage, persisted to a `.wasmdb` file. When specified, the database is stored in a single JSON file instead of a directory of text files. This mode simulates the storage backend that would be used when running in a WebAssembly browser environment.
+
+- For `create-db`: path becomes the persistence file (e.g., `./MyDb` creates `./MyDb.wasmdb`)
+- For other commands: `--db` must point to the `.wasmdb` file (e.g., `--db ./MyDb.wasmdb --wasm`)
 
 ## Commands
 
 ### create-db
 
-Creates a new database directory.
+Creates a new database at the specified path.
 
-**Syntax**
-
-```bash
-sqltxt create-db <path>
+```
+sqltxt create-db <path> [--wasm]
 ```
 
-**Examples**
-
+**Examples:**
 ```bash
-sqltxt create-db ./MyDatabase
-sqltxt create-db /data/wiki
+sqltxt create-db ./WikiDb
+sqltxt create-db ./WikiDb --wasm
 ```
-
-**Exit codes**
-
-- `0` — Success
-- `1` — Error (path exists, permission denied, etc.)
-
----
 
 ### exec
 
-Executes a single SQL.txt statement.
+Executes a single SQL statement (CREATE, INSERT, UPDATE, DELETE).
 
-**Syntax**
-
-```bash
-sqltxt exec --db <path> "<statement>"
+```
+sqltxt exec --db <path> [--wasm] "<statement>"
 ```
 
-**Examples**
-
+**Examples:**
 ```bash
-sqltxt exec --db ./MyDatabase "CREATE TABLE Users (Id CHAR(10), Name CHAR(50));"
-sqltxt exec --db ./MyDatabase "INSERT INTO Users (Id, Name) VALUES ('1', 'Alice');"
+sqltxt exec --db ./WikiDb "CREATE TABLE User (Id CHAR(10), Name CHAR(50))"
+sqltxt exec --db ./WikiDb.wasmdb --wasm "INSERT INTO User (Id, Name) VALUES ('1', 'Alice')"
 ```
-
----
 
 ### query
 
-Executes a SELECT statement and prints results.
+Executes a SELECT query and prints the result grid.
 
-**Syntax**
-
-```bash
-sqltxt query --db <path> "<select-statement>"
+```
+sqltxt query --db <path> "<select>"
 ```
 
-**Examples**
-
+**Example:**
 ```bash
-sqltxt query --db ./MyDatabase "SELECT * FROM Users;"
-sqltxt query --db ./MyDatabase "SELECT Id, Name FROM Users WHERE Id = '1';"
+sqltxt query --db ./WikiDb "SELECT * FROM User"
+sqltxt query --db ./WikiDb "SELECT Id, Name FROM User WHERE Id = '1'"
 ```
-
----
 
 ### script
 
-Executes a file containing SQL.txt statements.
+Executes a SQL script file (semicolon-separated statements).
 
-**Syntax**
-
-```bash
-sqltxt script --db <path> <script-file>
+```
+sqltxt script --db <path> [--wasm] <file>
 ```
 
-**Examples**
-
+**Examples:**
 ```bash
 sqltxt script --db ./WikiDb docs/samples/wiki-database/create-wiki.sql
+sqltxt script --db ./WikiDb.wasmdb --wasm docs/samples/wiki-database/seed-wiki.sql
 ```
-
----
 
 ### inspect
 
-Prints database metadata (tables, columns, row counts).
+Lists tables, columns, and row counts.
 
-**Syntax**
-
-```bash
-sqltxt inspect --db <path> [--tables | --schema <table>]
+```
+sqltxt inspect --db <path> [--wasm]
 ```
 
----
+**Examples:**
+```bash
+sqltxt inspect --db ./WikiDb
+sqltxt inspect --db ./WikiDb.wasmdb --wasm
+```
 
 ## Common Workflows
 
-### Create and populate a database
-
-```bash
-sqltxt create-db ./DemoDb
-sqltxt exec --db ./DemoDb "CREATE TABLE Users (Id CHAR(10), Name CHAR(50));"
-sqltxt exec --db ./DemoDb "INSERT INTO Users (Id, Name) VALUES ('1', 'Alice');"
-sqltxt query --db ./DemoDb "SELECT * FROM Users;"
-```
-
-### Run a setup script
+### Create and seed the sample Wiki database
 
 ```bash
 sqltxt create-db ./WikiDb
 sqltxt script --db ./WikiDb docs/samples/wiki-database/create-wiki.sql
+sqltxt script --db ./WikiDb docs/samples/wiki-database/seed-wiki.sql
+sqltxt query --db ./WikiDb "SELECT * FROM Page"
 ```
+
+### build-sample-wiki (quick setup)
+
+```bash
+sqltxt build-sample-wiki --db .
+sqltxt query --db ./WikiDb "SELECT * FROM User"
+```
+
+### WASM mode (browser-compatible storage)
+
+```bash
+sqltxt create-db ./MyDb --wasm
+sqltxt exec --db ./MyDb.wasmdb --wasm "CREATE TABLE User (Id CHAR(10), Name CHAR(50))"
+sqltxt exec --db ./MyDb.wasmdb --wasm "INSERT INTO User (Id, Name) VALUES ('1', 'Alice')"
+sqltxt query --db ./MyDb.wasmdb --wasm "SELECT * FROM User"
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Usage error, invalid arguments |
+| 2 | Parse error |
+| 3 | Schema error (table/column not found) |
+| 4 | Validation error (e.g., value too long) |
+| 5 | Storage error (file I/O, database not found) |
+| 99 | Unexpected error |

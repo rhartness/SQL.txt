@@ -1,62 +1,79 @@
-# Getting Started with SQL.txt
+# SQL.txt — Getting Started
 
 ## Prerequisites
 
-- **.NET 8 SDK** (or compatible; `rollForward` allows newer)
-- **Writable directory** for database storage
-- **Windows, macOS, or Linux** — SQL.txt is cross-platform
+- .NET 8 SDK
+- A writable directory for database storage
 
-## Build
+## Installation
+
+### From source
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/sqltxt/SQLTxt.git
 cd SQLTxt
 dotnet build
 ```
 
-## Run Tests
+### NuGet package (when published)
 
-```bash
-dotnet test
+```xml
+<PackageReference Include="SqlTxt" Version="0.1.0" />
 ```
 
-## Minimal Example
+## Quick Start
 
-Once the engine is implemented, you can:
-
-1. **Create a database**
+### CLI
 
 ```bash
-sqltxt create-db ./MyDatabase
+# Create a database
+dotnet run --project src/SqlTxt.Cli -- create-db ./MyDb
+
+# Create a table
+dotnet run --project src/SqlTxt.Cli -- exec --db ./MyDb "CREATE TABLE User (Id CHAR(10), Name CHAR(50))"
+
+# Insert a row
+dotnet run --project src/SqlTxt.Cli -- exec --db ./MyDb "INSERT INTO User (Id, Name) VALUES ('1', 'Alice')"
+
+# Query
+dotnet run --project src/SqlTxt.Cli -- query --db ./MyDb "SELECT * FROM User"
 ```
 
-Or via API:
+### WASM mode (browser-compatible storage)
+
+Use `--wasm` to store the database in a single `.wasmdb` file. This simulates the storage backend used in WebAssembly/browser environments.
+
+```bash
+dotnet run --project src/SqlTxt.Cli -- create-db ./MyDb --wasm
+dotnet run --project src/SqlTxt.Cli -- exec --db ./MyDb.wasmdb --wasm "CREATE TABLE User (Id CHAR(10), Name CHAR(50))"
+dotnet run --project src/SqlTxt.Cli -- exec --db ./MyDb.wasmdb --wasm "INSERT INTO User (Id, Name) VALUES ('1', 'Alice')"
+dotnet run --project src/SqlTxt.Cli -- query --db ./MyDb.wasmdb --wasm "SELECT * FROM User"
+```
+
+### Embedding (C#)
 
 ```csharp
-var engine = SqlTxtDatabase.Open("./MyDatabase");
-engine.Execute("CREATE DATABASE MyDatabase;");
-```
+using SqlTxt.Engine;
 
-2. **Create a table**
+var engine = new DatabaseEngine();
 
-```sql
-CREATE TABLE Users (
-    Id CHAR(10),
-    Name CHAR(50),
-    Email CHAR(100)
-);
-```
+// Create database (path = parent directory)
+await engine.ExecuteAsync("CREATE DATABASE MyDb", ".");
 
-3. **Insert and query**
+// Create table and insert
+await engine.ExecuteAsync("CREATE TABLE User (Id CHAR(10), Name CHAR(50))", "./MyDb");
+await engine.ExecuteAsync("INSERT INTO User (Id, Name) VALUES ('1', 'Alice')", "./MyDb");
 
-```sql
-INSERT INTO Users (Id, Name, Email) VALUES ('1', 'Alice', 'alice@example.com');
-SELECT * FROM Users;
+// Query
+var result = await engine.ExecuteQueryAsync("SELECT * FROM User", "./MyDb");
+foreach (var row in result.QueryResult!.Rows)
+{
+    Console.WriteLine($"{row.GetValue("Id")}: {row.GetValue("Name")}");
+}
 ```
 
 ## Next Steps
 
-- [Architecture](architecture/01-system-architecture.md) — System design
-- [Storage Format](architecture/02-storage-format.md) — On-disk layout (db/, Tables/, ~System/)
-- [CLI Reference](cli-reference.md) — Command-line usage
-- [Sample Wiki Database](samples/wiki-database.md) — Example schema, scripts, and CLI calls
+- [CLI Reference](cli-reference.md)
+- [Sample Wiki Database](samples/wiki-database.md)
+- [Architecture](architecture/01-system-architecture.md)
