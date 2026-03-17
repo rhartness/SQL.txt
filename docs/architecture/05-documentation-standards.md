@@ -62,6 +62,16 @@ SQL.txt supports multiple implementation paths. Reference docs must show example
 
 For each functionality, include examples for each applicable type. Do not document only one implementation path.
 
+## Performance and Efficiency Documentation
+
+When adding or changing I/O paths, document:
+
+- **Memory behavior** — Streaming vs full load; O(1) vs O(n) memory
+- **Atomicity guarantees** — Temp file + rename; no partial writes
+- **Large-data considerations** — Sharding, streaming thresholds, when full load is acceptable
+
+See [10-performance-and-efficiency.md](10-performance-and-efficiency.md) for principles and recommended patterns. Use [Efficiency_Audit_Methodology.md](../plans/Efficiency_Audit_Methodology.md) when auditing existing code.
+
 ## Documentation Locations
 
 | Document Type | Location |

@@ -19,9 +19,9 @@ The database needs a clear, extensible on-disk layout that supports tables, view
 ### Content Folders
 
 - **Tables/** — One folder per table; each contains root data file, PK, FK, and index files
-- **Views/** — Similar to Tables (late-project)
-- **Procedures/** — One file per stored procedure
-- **Functions/** — One file per user-defined function
+- **Views/** — Similar to Tables (Phase 6)
+- **Procedures/** — One file per stored procedure (Phase 6)
+- **Functions/** — One file per user-defined function (Phase 6)
 - **~System/** — System-generated folder; same structure as Tables but for meta-information
 
 ### Table Folder File Naming

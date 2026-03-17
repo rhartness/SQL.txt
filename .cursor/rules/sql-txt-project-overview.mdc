@@ -60,6 +60,9 @@ alwaysApply: true
 | Phase 1 | Done |
 | Phase 2 | Next |
 | Phase 3 | Planned |
+| Phase 4 | Planned |
+| Phase 5 | Planned |
+| Phase 6 | Planned |
 
 **Current focus:** Phase 2. See [docs/plans/](docs/plans/).
 
@@ -69,8 +72,8 @@ alwaysApply: true
 - `db/` — Database properties (manifest)
 - `Tables/` — User tables; each folder has `<TableName>.txt`, `_PK.txt`, `_FK_*.txt`, `_INX_*.txt`
 - `~System/` — System metadata (prefix `~` = engine-managed)
-- `Views/`, `Procedures/`, `Functions/` — Future features
+- `Views/`, `Procedures/`, `Functions/` — Phase 6 (views, stored procedures, functions)
 
 ## Reference
 
-See [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md) for full specification.
+See [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md) for full specification. See [docs/specifications/02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md) for post-Phase 3 roadmap. For performance and efficiency requirements, see [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md).

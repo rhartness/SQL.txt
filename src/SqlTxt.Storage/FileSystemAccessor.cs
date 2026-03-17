@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace SqlTxt.Storage;
 
 /// <summary>
@@ -24,6 +26,29 @@ public sealed class FileSystemAccessor : Contracts.IFileSystemAccessor
     {
         var lines = await File.ReadAllLinesAsync(path, cancellationToken).ConfigureAwait(false);
         return lines;
+    }
+
+    public async IAsyncEnumerable<string> ReadLinesAsync(string path, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+        await using (stream.ConfigureAwait(false))
+        {
+            using var reader = new StreamReader(stream);
+            string? line;
+            while ((line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)) != null)
+            {
+                yield return line;
+            }
+        }
+    }
+
+    public void MoveFile(string sourcePath, string destinationPath) =>
+        File.Move(sourcePath, destinationPath, overwrite: true);
+
+    public void DeleteFile(string path)
+    {
+        if (File.Exists(path))
+            File.Delete(path);
     }
 
     public string GetFullPath(string path) => Path.GetFullPath(path);

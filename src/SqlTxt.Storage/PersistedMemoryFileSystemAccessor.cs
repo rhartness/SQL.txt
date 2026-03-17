@@ -64,6 +64,26 @@ public sealed class PersistedMemoryFileSystemAccessor : IFileSystemAccessor
         return await _inner.ReadAllLinesAsync(path, cancellationToken).ConfigureAwait(false);
     }
 
+    public IAsyncEnumerable<string> ReadLinesAsync(string path, CancellationToken cancellationToken = default)
+    {
+        EnsureLoaded();
+        return _inner.ReadLinesAsync(path, cancellationToken);
+    }
+
+    public void MoveFile(string sourcePath, string destinationPath)
+    {
+        EnsureLoaded();
+        _inner.MoveFile(sourcePath, destinationPath);
+        Save();
+    }
+
+    public void DeleteFile(string path)
+    {
+        EnsureLoaded();
+        _inner.DeleteFile(path);
+        Save();
+    }
+
     public string GetFullPath(string path) => _inner.GetFullPath(path);
 
     public string Combine(params string[] paths) => _inner.Combine(paths);

@@ -84,3 +84,4 @@ SqlTxt.Cli    SqlTxt.SampleApp  SqlTxt.Service  NuGet (SqlTxt)
 - [07-api-and-deployment.md](07-api-and-deployment.md) — Build types, API
 - [08-concurrency-and-locking.md](08-concurrency-and-locking.md) — Locking
 - [09-wasm-storage.md](09-wasm-storage.md) — WASM-compatible storage
+- [10-performance-and-efficiency.md](10-performance-and-efficiency.md) — Speed, memory, durability

@@ -19,12 +19,12 @@ The root folder is named after the database. All database content lives beneath 
       <TableName>_PK.txt            # Primary key index
       <TableName>_FK_<LinkedTable>.txt   # Foreign key index (Phase 2+)
       <TableName>_INX_<Columns>_<N>.txt # Index (Phase 2+)
-  Views/                           # Views (late-project feature)
+  Views/                           # Views (Phase 6)
     <ViewName>/
       ...
-  Procedures/                      # Stored procedures (advanced SQL feature)
+  Procedures/                      # Stored procedures (Phase 6)
     <ProcedureName>.txt
-  Functions/                       # User-defined functions (advanced SQL feature)
+  Functions/                       # User-defined functions (Phase 6)
     <FunctionName>.txt
   ~System/                         # System-generated; meta-information
     (system tables, same structure as Tables/)
@@ -104,11 +104,11 @@ This is a mini-database that the engine can load in-memory to know how and where
 
 ## Views/ Folder
 
-Similar to Tables; each view has a folder. Views are stored queries over tables. (Late-project feature.)
+Similar to Tables; each view has a folder. Views are stored queries over tables. (Phase 6.)
 
 ## Procedures/ and Functions/
 
-One file per stored procedure or function. File name = object name. (Advanced SQL feature.)
+One file per stored procedure or function. File name = object name. (Phase 6.)
 
 ## Sharding
 

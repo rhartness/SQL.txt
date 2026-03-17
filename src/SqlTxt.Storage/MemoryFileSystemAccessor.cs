@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace SqlTxt.Storage;
 
 /// <summary>
@@ -79,6 +81,37 @@ public sealed class MemoryFileSystemAccessor : Contracts.IFileSystemAccessor
             throw new FileNotFoundException("File not found", path);
         var lines = content.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
         return Task.FromResult<IReadOnlyList<string>>(lines);
+    }
+
+    public async IAsyncEnumerable<string> ReadLinesAsync(string path, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var norm = Normalize(path);
+        if (!_files.TryGetValue(norm, out var content))
+            throw new FileNotFoundException("File not found", path);
+        var lines = content.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
+        foreach (var line in lines)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return line;
+            await Task.Yield();
+        }
+    }
+
+    public void MoveFile(string sourcePath, string destinationPath)
+    {
+        var srcNorm = Normalize(sourcePath);
+        var destNorm = Normalize(destinationPath);
+        if (!_files.TryGetValue(srcNorm, out var content))
+            throw new FileNotFoundException("File not found", sourcePath);
+        EnsureParentDirectories(destNorm);
+        _files[destNorm] = content;
+        _files.Remove(srcNorm);
+    }
+
+    public void DeleteFile(string path)
+    {
+        var norm = Normalize(path);
+        _files.Remove(norm);
     }
 
     public string GetFullPath(string path)

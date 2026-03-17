@@ -34,4 +34,15 @@ public interface ITableDataStore
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <param name="warnings">Optional list to collect truncation warnings.</param>
     Task WriteAllRowsAsync(string databasePath, string tableName, IReadOnlyList<(bool IsActive, RowData Row)> rows, CancellationToken cancellationToken = default, List<string>? warnings = null);
+
+    /// <summary>
+    /// Streams rows from all shards, applies transform to each, and writes back atomically.
+    /// Returns row counts for metadata update.
+    /// </summary>
+    Task<(int TotalRows, int ActiveRows, int DeletedRows)> StreamTransformRowsAsync(
+        string databasePath,
+        string tableName,
+        Func<(bool IsActive, RowData Row), (bool IsActive, RowData Row)> transform,
+        CancellationToken cancellationToken = default,
+        List<string>? warnings = null);
 }

@@ -41,6 +41,22 @@ public interface IFileSystemAccessor
     Task<IReadOnlyList<string>> ReadAllLinesAsync(string path, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Streams lines from a file one at a time (O(1) memory per line).
+    /// Caller must complete enumeration to ensure proper disposal.
+    /// </summary>
+    IAsyncEnumerable<string> ReadLinesAsync(string path, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Moves a file from source to destination, overwriting if destination exists (atomic replace).
+    /// </summary>
+    void MoveFile(string sourcePath, string destinationPath);
+
+    /// <summary>
+    /// Deletes a file if it exists.
+    /// </summary>
+    void DeleteFile(string path);
+
+    /// <summary>
     /// Gets the full path, resolving relative paths against current directory.
     /// </summary>
     string GetFullPath(string path);

@@ -309,23 +309,22 @@ public sealed class DatabaseEngine : IDatabaseEngine
         var table = await _schemaStore.ReadSchemaAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{cmd.TableName}' not found");
 
-        var rows = await _tableDataStore.ReadAllRowsWithStatusAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
+        var warnings = new List<string>();
         var updated = 0;
 
-        var warnings = new List<string>();
-        var newRows = rows.Select(r =>
+        (bool IsActive, RowData Row) Transform((bool IsActive, RowData Row) r)
         {
-            if (!r.Item1)
+            if (!r.IsActive)
                 return r;
 
             if (cmd.WhereColumn != null && cmd.WhereValue != null)
             {
-                var rowVal = r.Item2.GetValue(cmd.WhereColumn);
+                var rowVal = r.Row.GetValue(cmd.WhereColumn);
                 if (rowVal == null || !rowVal.Equals(cmd.WhereValue, StringComparison.OrdinalIgnoreCase))
                     return r;
             }
 
-            var dict = new Dictionary<string, string>(r.Item2.Values, StringComparer.OrdinalIgnoreCase);
+            var dict = new Dictionary<string, string>(r.Row.Values, StringComparer.OrdinalIgnoreCase);
             foreach (var (col, value) in cmd.SetClauses)
             {
                 var column = table.Columns.FirstOrDefault(c => c.Name.Equals(col, StringComparison.OrdinalIgnoreCase))
@@ -334,13 +333,9 @@ public sealed class DatabaseEngine : IDatabaseEngine
             }
             updated++;
             return (true, new RowData(dict));
-        }).ToList();
+        }
 
-        await _tableDataStore.WriteAllRowsAsync(databasePath, cmd.TableName, newRows, cancellationToken, warnings).ConfigureAwait(false);
-
-        var total = newRows.Count;
-        var active = newRows.Count(r => r.Item1);
-        var delCount = total - active;
+        var (total, active, delCount) = await _tableDataStore.StreamTransformRowsAsync(databasePath, cmd.TableName, Transform, cancellationToken, warnings).ConfigureAwait(false);
         await _metadataStore.UpdateMetadataAsync(databasePath, cmd.TableName, total, active, delCount, cancellationToken).ConfigureAwait(false);
 
         return new EngineResult(updated, Warnings: warnings);
@@ -350,33 +345,27 @@ public sealed class DatabaseEngine : IDatabaseEngine
     {
         await EnsureDatabaseExistsAsync(databasePath, cancellationToken).ConfigureAwait(false);
 
-        var table = await _schemaStore.ReadSchemaAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false)
-            ?? throw new SchemaException($"Table '{cmd.TableName}' not found");
+        await _schemaStore.ReadSchemaAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
 
-        var rows = await _tableDataStore.ReadAllRowsWithStatusAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
         var deleted = 0;
 
-        var newRows = rows.Select(r =>
+        (bool IsActive, RowData Row) Transform((bool IsActive, RowData Row) r)
         {
-            if (!r.Item1)
+            if (!r.IsActive)
                 return r;
 
             if (cmd.WhereColumn != null && cmd.WhereValue != null)
             {
-                var rowVal = r.Item2.GetValue(cmd.WhereColumn);
+                var rowVal = r.Row.GetValue(cmd.WhereColumn);
                 if (rowVal == null || !rowVal.Equals(cmd.WhereValue, StringComparison.OrdinalIgnoreCase))
                     return r;
             }
 
             deleted++;
-            return (false, r.Item2); // Mark as deleted (D|)
-        }).ToList();
+            return (false, r.Row); // Mark as deleted (D|)
+        }
 
-        await _tableDataStore.WriteAllRowsAsync(databasePath, cmd.TableName, newRows, cancellationToken).ConfigureAwait(false);
-
-        var total = newRows.Count;
-        var active = newRows.Count(r => r.Item1);
-        var delCount = total - active;
+        var (total, active, delCount) = await _tableDataStore.StreamTransformRowsAsync(databasePath, cmd.TableName, Transform, cancellationToken).ConfigureAwait(false);
         await _metadataStore.UpdateMetadataAsync(databasePath, cmd.TableName, total, active, delCount, cancellationToken).ConfigureAwait(false);
 
         return new EngineResult(deleted);

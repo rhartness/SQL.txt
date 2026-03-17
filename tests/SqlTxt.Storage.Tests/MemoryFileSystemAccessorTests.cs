@@ -49,6 +49,47 @@ public class MemoryFileSystemAccessorTests
     }
 
     [Fact]
+    public async Task ReadLinesAsync_StreamsLines()
+    {
+        _fs.CreateDirectory("data");
+        await _fs.WriteAllTextAsync("data/stream.txt", "x\ny\nz");
+        var collected = new List<string>();
+        await foreach (var line in _fs.ReadLinesAsync("data/stream.txt"))
+        {
+            collected.Add(line);
+        }
+        Assert.Equal(["x", "y", "z"], collected);
+    }
+
+    [Fact]
+    public async Task MoveFile_OverwritesDestination()
+    {
+        _fs.CreateDirectory("src");
+        _fs.CreateDirectory("dest");
+        await _fs.WriteAllTextAsync("src/a.txt", "original");
+        await _fs.WriteAllTextAsync("dest/a.txt", "old");
+        _fs.MoveFile("src/a.txt", "dest/a.txt");
+        Assert.False(_fs.FileExists("src/a.txt"));
+        Assert.Equal("original", await _fs.ReadAllTextAsync("dest/a.txt"));
+    }
+
+    [Fact]
+    public async Task DeleteFile_RemovesFile()
+    {
+        _fs.CreateDirectory("x");
+        await _fs.WriteAllTextAsync("x/f.txt", "content");
+        Assert.True(_fs.FileExists("x/f.txt"));
+        _fs.DeleteFile("x/f.txt");
+        Assert.False(_fs.FileExists("x/f.txt"));
+    }
+
+    [Fact]
+    public void DeleteFile_Nonexistent_DoesNotThrow()
+    {
+        _fs.DeleteFile("nonexistent/path.txt");
+    }
+
+    [Fact]
     public void GetFullPath_Normalizes()
     {
         var p = _fs.GetFullPath("a/b/c");

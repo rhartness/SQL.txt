@@ -17,6 +17,9 @@
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
 | **Phase 2** | Next | Indexes, PK/FK, constraints, relational metadata |
 | **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
+| **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
+| **Phase 5** | Planned | ALTER TABLE, transactions |
+| **Phase 6** | Planned | Views, stored procedures, functions |
 
 **Current focus:** Phase 2. Use [docs/plans/Phase2_Implementation_Plan.md](docs/plans/Phase2_Implementation_Plan.md) when available. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
 
@@ -35,6 +38,16 @@
 - "Build the complete SQL.txt engine."
 - "Implement everything in Phase 1."
 
+## Efficiency Requirements
+
+For each new feature, consider **speed** (minimal I/O, buffering) and **memory** (streaming vs full load). For large data, prefer streaming, copy-on-write, and atomic renames. Breaking coding conventions is acceptable when it yields faster, more efficient, or more durable code.
+
+- **Speed:** Minimize I/O; use streaming over full-file loads when files may grow large.
+- **Memory:** Prefer O(1) or O(row) memory; avoid loading entire tables when streaming is possible.
+- **Durability:** Use atomic writes (temp file + rename); no partial writes.
+
+See [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md) and [docs/plans/Efficiency_Audit_Methodology.md](docs/plans/Efficiency_Audit_Methodology.md).
+
 ## Documentation
 
 When adding features, update all relevant documentation. For each functionality, provide examples for **all implementation types** where the feature applies:
@@ -48,6 +61,7 @@ See [docs/architecture/05-documentation-standards.md](docs/architecture/05-docum
 ## Key References
 
 - **Full specification:** [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md)
+- **Post-Phase 3 features:** [docs/specifications/02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md)
 - **Phase 1 prompts:** [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md)
 - **Architecture:** [docs/architecture/](docs/architecture/)
 - **Storage format:** [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md) — db/, Tables/, ~System/, sharding
@@ -57,6 +71,8 @@ See [docs/architecture/05-documentation-standards.md](docs/architecture/05-docum
 - **Design decisions (ADR-003):** [docs/decisions/adr-003-phase1-design-decisions.md](docs/decisions/adr-003-phase1-design-decisions.md)
 - **Documentation standards:** [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
 - **WASM storage:** [docs/architecture/09-wasm-storage.md](docs/architecture/09-wasm-storage.md)
+- **Performance/efficiency:** [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md)
+- **Efficiency audit:** [docs/plans/Efficiency_Audit_Methodology.md](docs/plans/Efficiency_Audit_Methodology.md)
 - **Sample Wiki database:** [docs/samples/wiki-database.md](docs/samples/wiki-database.md)
 - **Plans:** [docs/plans/](docs/plans/)
 
