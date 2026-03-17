@@ -1,23 +1,50 @@
 # Storage Format
 
+## Platform Support
+
+SQL.txt is **cross-platform**: Windows, macOS, and Linux. File and folder names use characters valid on all platforms. The system folder prefix (`~`) is supported on all major operating systems.
+
 ## Directory Layout
 
+The root folder is named after the database. All database content lives beneath it.
+
 ```
-/MyDatabase/
-  db.manifest.json
-  /system/
-    tables.meta.txt
-    engine.meta.json
-  /tables/
-    /Users/
-      schema.txt
-      data.txt
-      table.meta.txt
+<DatabaseName>/                    # Root folder = database name
+  db/                              # Database descriptor and properties
+    manifest.json
+    (other db-level config)
+  Tables/                          # User tables
+    <TableName>/
+      <TableName>.txt              # Root data file
+      <TableName>_PK.txt            # Primary key index
+      <TableName>_FK_<LinkedTable>.txt   # Foreign key index (Phase 2+)
+      <TableName>_INX_<Columns>_<N>.txt # Index (Phase 2+)
+  Views/                           # Views (late-project feature)
+    <ViewName>/
+      ...
+  Procedures/                      # Stored procedures (advanced SQL feature)
+    <ProcedureName>.txt
+  Functions/                       # User-defined functions (advanced SQL feature)
+    <FunctionName>.txt
+  ~System/                         # System-generated; meta-information
+    (system tables, same structure as Tables/)
 ```
 
-## File Formats
+### System Folder Prefix
 
-### db.manifest.json
+The `~` character prefixes system-generated folders (e.g., `~System`). This convention:
+
+- Identifies folders that are managed by the engine, not user-created
+- Works on Windows, macOS, and Linux (valid in file/folder names everywhere)
+- Allows future system folders (e.g., `~Temp`, `~Cache`) to follow the same pattern
+
+If platform constraints ever require an alternative, use a single ASCII character that is valid in filenames on all target systems (e.g., `_System`). The current specification uses `~`.
+
+## db/ Folder
+
+Contains all properties specific to the database itself. It describes the database.
+
+### manifest.json
 
 ```json
 {
@@ -26,28 +53,22 @@
 }
 ```
 
-### schema.txt (per table)
+## Tables/ Folder
 
-```
-TABLE: Users
-FORMAT_VERSION: 1
-COLUMNS:
-1|Id|CHAR|10
-2|Name|CHAR|50
-3|Email|CHAR|100
-```
+One folder per table. Each table folder contains:
 
-### table.meta.txt (per table)
+| File | Purpose |
+|------|---------|
+| `<TableName>.txt` | Root data file (rows) |
+| `<TableName>_PK.txt` | Primary key index (Phase 2+) |
+| `<TableName>_FK_<LinkedTable>.txt` | Foreign key index for FK to LinkedTable (Phase 2+) |
+| `<TableName>_INX_<Col1>_<Col2>_<N>.txt` | Index on columns; N = increment if multiple indexes share same columns (Phase 2+) |
 
-```
-TABLE: Users
-ROW_COUNT: 12
-ACTIVE_ROW_COUNT: 12
-DELETED_ROW_COUNT: 0
-LAST_UPDATED_UTC: 2026-03-16T00:00:00Z
-```
+### Schema and Metadata
 
-### data.txt (per table)
+Schema and per-table metadata may be stored in the table folder or in `~System`. See versioning strategy below.
+
+### Root Data File Format
 
 Fixed-width positional rows with soft-delete marker:
 
@@ -61,28 +82,32 @@ D|3         Bob                                               bob@example.com
 - `D`: Deleted row
 - Pipe-delimited; fields padded to fixed width per schema
 
-### system/tables.meta.txt
+## ~System/ Folder
 
-```
-Users|2026-03-16T00:00:00Z
-Orders|2026-03-16T00:05:00Z
-```
+Same structure as `Tables/` but for system tables. Stores meta-information about:
 
-### system/columns.meta.txt (or equivalent)
+- User tables, columns, types
+- Stored procedures, functions
+- Indexes, keys, constraints
 
-```
-Users|1|Id|CHAR|10
-Users|2|Name|CHAR|50
-Users|3|Email|CHAR|100
-```
+This is a mini-database that the engine can load in-memory to know how and where information is stored.
+
+## Views/ Folder
+
+Similar to Tables; each view has a folder. Views are stored queries over tables. (Late-project feature.)
+
+## Procedures/ and Functions/
+
+One file per stored procedure or function. File name = object name. (Advanced SQL feature.)
 
 ## Versioning Strategy
 
 - `FORMAT_VERSION` in schema enables future format evolution
-- `storageFormatVersion` in manifest for cross-table compatibility
+- `storageFormatVersion` in manifest for cross-database compatibility
 - Phase 1: fixed-width only; Phase 3: per-table format versions for VARCHAR
 
 ## File Naming
 
-- Table names map to folder/file names (e.g., `Users` → `tables/Users/`)
+- Table/view/procedure/function names map to folder/file names
 - Case-preserving; normalized for lookup
+- Index files: `<TableName>_INX_<ColumnNames>_<Increment>.txt` — column names in index order, underscore-separated; increment used when multiple indexes share the same column list

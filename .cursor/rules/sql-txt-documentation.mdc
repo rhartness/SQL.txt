@@ -1,0 +1,27 @@
+---
+description: Documentation update requirements for SQL.txt
+globs: "docs/**/*.md"
+alwaysApply: false
+---
+
+# SQL.txt Documentation
+
+## When to Update
+
+- **On feature completion** — Update Getting Started, API docs, CLI reference, feature docs
+- **On API change** — Update XML comments and generated docs
+- **On CLI change** — Update docs/cli-reference.md and examples
+
+## Required Content
+
+- **Getting Started** — Prerequisites, build, minimal example, next steps
+- **Public API** — XML docs for all public types/members (purpose, params, returns, exceptions)
+- **CLI Reference** — Command syntax, options, examples, exit codes
+- **Feature docs** — Per-feature sections with usage of related features
+
+## Locations
+
+- docs/getting-started.md
+- docs/cli-reference.md
+- docs/architecture/05-documentation-standards.md
+- docs/samples/wiki-database.md

@@ -20,7 +20,7 @@ Use these prompts for bounded, testable implementation waves. Do not combine mul
 
 ## Wave 3 — Storage Foundation
 
-> Implement a filesystem-backed storage layer for SqlTxt that creates a database root folder, writes a manifest file (db.manifest.json), writes table schema.txt files, and writes metadata files for tables and columns. Keep all formats human-readable text per docs/architecture/02-storage-format.md. Use IFileSystemAccessor to abstract file I/O for testability.
+> Implement a filesystem-backed storage layer for SqlTxt per docs/architecture/02-storage-format.md. Create database root folder (database name), db/ folder with manifest.json, Tables/ with one folder per table. Each table folder contains <TableName>.txt (root data), and (Phase 2+) PK, FK, index files. Create ~System/ for system metadata. Keep all formats human-readable. Use IFileSystemAccessor to abstract file I/O for testability. Ensure cross-platform (Windows, macOS, Linux).
 
 ---
 

@@ -38,6 +38,9 @@
 - **Full specification:** [docs/specs/01_Initial_Creation.md](docs/specs/01_Initial_Creation.md)
 - **Phase 1 prompts:** [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md)
 - **Architecture:** [docs/architecture/](docs/architecture/)
+- **Storage format:** [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md) — db/, Tables/, ~System/, etc.
+- **Documentation standards:** [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
+- **Sample Wiki database:** [docs/samples/wiki-database.md](docs/samples/wiki-database.md)
 - **Plans:** [docs/plans/](docs/plans/)
 
 ## Project Structure

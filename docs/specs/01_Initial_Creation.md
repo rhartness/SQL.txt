@@ -228,12 +228,13 @@ IRowDeserializer
 
 ## `docs/architecture/02-storage-format.md`
 
-* directory layout
+* directory layout (db/, Tables/, Views/, Procedures/, Functions/, ~System/)
 * file naming
 * schema file format
 * metadata file format
 * row data format
 * versioning strategy
+* cross-platform (Windows, macOS, Linux)
 
 ## `docs/architecture/03-sql-subset.md`
 
@@ -250,6 +251,13 @@ IRowDeserializer
 * parser cases
 * corruption handling
 
+## `docs/architecture/05-documentation-standards.md`
+
+* Getting Started requirements
+* Public API documentation
+* CLI usage documentation
+* feature documentation
+
 ## `docs/prompts/phase-1-cursor-prompts.md`
 
 Cursor-ready prompts for each wave.
@@ -257,6 +265,10 @@ Cursor-ready prompts for each wave.
 ## `docs/decisions/adr-001-human-readable-storage.md`
 
 Architecture decision records for major choices.
+
+## `docs/samples/wiki-database.md`
+
+Sample Wiki database schema, scripts, and CLI usage.
 
 ---
 
@@ -482,54 +494,37 @@ That keeps the first implementation smaller and lets parsing/storage stabilize e
 
 ## 6. On-Disk Storage Design
 
-## 6.1 Directory Layout
+### Platform Support
+
+SQL.txt is **cross-platform**: Windows, macOS, and Linux. All file and folder names use characters valid on all target systems.
+
+### 6.1 Directory Layout
+
+The root folder is the database name. A `db/` folder contains database-level properties. User and system content are organized in dedicated folders.
 
 ```text
-/MyDatabase/
-  db.config.json
-  /schemas/
-    Users.schema.txt
-  /tables/
-    Users.data.txt
-  /meta/
-    tables.meta.txt
-    columns.meta.txt
+<DatabaseName>/                    # Root folder = database name
+  db/                              # Database descriptor and properties
+    manifest.json
+  Tables/                          # User tables
+    <TableName>/
+      <TableName>.txt              # Root data file
+      <TableName>_PK.txt           # Primary key (Phase 2+)
+      <TableName>_FK_<LinkedTable>.txt   # Foreign key (Phase 2+)
+      <TableName>_INX_<Columns>_<N>.txt   # Index (Phase 2+)
+  Views/                           # Views (late-project)
+  Procedures/                      # Stored procedures (advanced SQL)
+  Functions/                       # User-defined functions (advanced SQL)
+  ~System/                         # System-generated; meta-information
 ```
 
-Alternative:
+**System folder prefix:** The `~` character prefixes system-generated folders (e.g., `~System`). Valid on Windows, macOS, and Linux. Identifies engine-managed folders. Future system folders (e.g., `~Temp`) use the same prefix.
 
-```text
-/MyDatabase/
-  manifest.txt
-  /tables/
-    Users/
-      schema.txt
-      data.txt
-```
-
-### Recommendation
-
-Use **per-table folders** because Phase 2 and 3 will need:
-
-* index files
-* relationship metadata
-* stats
-* format upgrades
-
-Preferred structure:
-
-```text
-/MyDatabase/
-  db.manifest.json
-  /system/
-    tables.meta.txt
-    engine.meta.json
-  /tables/
-    /Users/
-      schema.txt
-      data.txt
-      table.meta.txt
-```
+**Table folder contents:**
+- `<TableName>.txt` — Root data file
+- `<TableName>_PK.txt` — Primary key index
+- `<TableName>_FK_<LinkedTable>.txt` — Foreign key index
+- `<TableName>_INX_<Col1>_<Col2>_<N>.txt` — Index; N = increment when multiple indexes share same columns
 
 ---
 
@@ -636,15 +631,9 @@ Use **soft delete marker** in early implementation. It makes update/delete logic
 
 ## 8. Metadata Strategy
 
-Maintain system metadata files for:
+System metadata (tables, columns, format version) is stored in the `~System/` folder. This provides a database-like introspection experience and helps future CLI tooling. Schema and per-table metadata may also live in each table folder.
 
-* tables
-* columns
-* storage format version
-
-This provides a database-like introspection experience and helps future CLI tooling.
-
-### Example `tables.meta.txt`
+### Example (in ~System or table folder)
 
 ```text
 Users|2026-03-16T00:00:00Z
@@ -1098,6 +1087,32 @@ sqltxt exec "CREATE TABLE Users (Id CHAR(10), Name CHAR(50));"
 sqltxt exec "INSERT INTO Users (Id, Name) VALUES ('1', 'Richard');"
 sqltxt query "SELECT * FROM Users;"
 ```
+
+---
+
+# Documentation Requirements
+
+As code is generated and built, documentation must be updated:
+
+* **Getting Started** — Prerequisites, build, minimal example, next steps
+* **Public API** — XML docs for all public types and members; purpose, parameters, returns, exceptions
+* **CLI Reference** — Command syntax, options, examples, exit codes
+* **Feature Documentation** — Per-feature sections with usage of related features
+
+See `docs/architecture/05-documentation-standards.md`.
+
+---
+
+# Sample Wiki Database
+
+A simplified Wiki schema serves as the sample database:
+
+* **Tables:** User, Page, PageContent, Image, PageImage (pages, content, user management, image management)
+* **No front-end** — Samples and documentation use the CLI
+* **Scripts:** `docs/samples/wiki-database/create-wiki.sql`, `seed-wiki.sql`
+* **Future:** A separate repo may create a Wiki website using this tool and sample database
+
+Documentation must include steps to generate the sample database and example CLI calls. See `docs/samples/wiki-database.md`.
 
 ---
 

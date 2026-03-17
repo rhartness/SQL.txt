@@ -48,7 +48,13 @@
 ## Constraints
 
 - .NET 8 (or compatible)
+- Cross-platform: Windows, macOS, Linux
 - Single-process friendly; basic file locking
 - No external database server
 - Human-readable formats only
 - Case-insensitive keywords; case-preserving identifiers
+
+## Documentation
+
+- Getting Started, Public API, CLI reference, and feature docs updated as code is built
+- Sample Wiki database with schema, scripts, and CLI examples

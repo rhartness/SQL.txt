@@ -15,6 +15,7 @@ A lightweight, embeddable .NET database engine that persists schemas, metadata, 
 
 - **Human-readable on-disk storage** — Inspect and debug data with any text editor
 - **Lightweight local embedded usage** — No server, no external dependencies
+- **Cross-platform** — Windows, macOS, Linux
 - **Structured progression** — Phased implementation from simple to relational engine
 - **.NET 8** — Modern C# with async/await support
 
@@ -57,8 +58,11 @@ dotnet test
 
 ## Documentation
 
+- [Getting Started](docs/getting-started.md) — Prerequisites, build, minimal example
+- [CLI Reference](docs/cli-reference.md) — Command-line usage
 - [Initial Creation Spec](docs/specs/01_Initial_Creation.md) — Full specification
 - [Architecture](docs/architecture/) — System design and storage format
+- [Sample Wiki Database](docs/samples/wiki-database.md) — Example schema and scripts
 - [Plans](docs/plans/) — Implementation plans
 
 ## License

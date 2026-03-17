@@ -2,7 +2,7 @@
 
 ## Overview
 
-SQL.txt uses a layered architecture with clear separation between parsing, execution, storage, and file system access.
+SQL.txt uses a layered architecture with clear separation between parsing, execution, storage, and file system access. The engine is **cross-platform** (Windows, macOS, Linux).
 
 ## Project Dependencies
 

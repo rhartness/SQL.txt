@@ -1,6 +1,6 @@
 # Example Database Directory Layout
 
-This document shows the on-disk structure after creating a database and table with sample data.
+This document shows the on-disk structure using the specified layout: root folder = database name, `db/` for database properties, `Tables/` for user tables, `~System/` for system metadata.
 
 ## Create Database and Table
 
@@ -19,21 +19,20 @@ INSERT INTO Users (Id, Name, Email) VALUES ('2', 'Alice', 'alice@example.com');
 
 ```
 DemoDb/
-├── db.manifest.json
-├── system/
-│   ├── tables.meta.txt
-│   ├── columns.meta.txt
-│   └── engine.meta.json
-└── tables/
-    └── Users/
-        ├── schema.txt
-        ├── data.txt
-        └── table.meta.txt
+├── db/
+│   └── manifest.json
+├── Tables/
+│   └── Users/
+│       ├── Users.txt              # Root data file
+│       ├── Users_PK.txt           # Primary key (Phase 2+)
+│       └── (schema/metadata)
+└── ~System/
+    └── (system tables for meta-information)
 ```
 
 ## File Contents
 
-### db.manifest.json
+### db/manifest.json
 
 ```json
 {
@@ -42,46 +41,37 @@ DemoDb/
 }
 ```
 
-### system/tables.meta.txt
-
-```
-Users|2026-03-16T00:00:00Z
-```
-
-### system/columns.meta.txt
-
-```
-Users|1|Id|CHAR|10
-Users|2|Name|CHAR|50
-Users|3|Email|CHAR|100
-```
-
-### tables/Users/schema.txt
-
-```
-TABLE: Users
-FORMAT_VERSION: 1
-COLUMNS:
-1|Id|CHAR|10
-2|Name|CHAR|50
-3|Email|CHAR|100
-```
-
-### tables/Users/data.txt
+### Tables/Users/Users.txt
 
 ```
 A|1         Richard                                           richard@example.com
 A|2         Alice                                             alice@example.com
 ```
 
-### tables/Users/table.meta.txt
+### Tables/Users/ (schema)
+
+Schema and metadata for the Users table (exact format may live in table folder or ~System per implementation).
+
+## With Indexes and Foreign Keys (Phase 2+)
 
 ```
-TABLE: Users
-ROW_COUNT: 2
-ACTIVE_ROW_COUNT: 2
-DELETED_ROW_COUNT: 0
-LAST_UPDATED_UTC: 2026-03-16T00:00:00Z
+DemoDb/
+├── db/
+│   └── manifest.json
+├── Tables/
+│   ├── Users/
+│   │   ├── Users.txt
+│   │   ├── Users_PK.txt
+│   │   └── Users_INX_Email_1.txt
+│   └── Orders/
+│       ├── Orders.txt
+│       ├── Orders_PK.txt
+│       └── Orders_FK_Users.txt
+├── Views/
+├── Procedures/
+├── Functions/
+└── ~System/
+    └── (system tables)
 ```
 
 ## After DELETE
@@ -90,19 +80,9 @@ LAST_UPDATED_UTC: 2026-03-16T00:00:00Z
 DELETE FROM Users WHERE Id = '1';
 ```
 
-### tables/Users/data.txt
+### Tables/Users/Users.txt
 
 ```
 D|1         Richard                                           richard@example.com
 A|2         Alice                                             alice@example.com
-```
-
-### tables/Users/table.meta.txt
-
-```
-TABLE: Users
-ROW_COUNT: 2
-ACTIVE_ROW_COUNT: 1
-DELETED_ROW_COUNT: 1
-LAST_UPDATED_UTC: 2026-03-16T00:01:00Z
 ```

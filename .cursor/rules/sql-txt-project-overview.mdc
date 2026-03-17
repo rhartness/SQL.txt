@@ -41,6 +41,14 @@ alwaysApply: true
 | SqlTxt.Parser | Tokenizer, parser, command AST/DTO, error reporting |
 | SqlTxt.Engine | Create db/table, insert, select, update, delete, table scans |
 
+## Storage Layout
+
+- Root folder = database name
+- `db/` — Database properties (manifest)
+- `Tables/` — User tables; each folder has `<TableName>.txt`, `_PK.txt`, `_FK_*.txt`, `_INX_*.txt`
+- `~System/` — System metadata (prefix `~` = engine-managed)
+- `Views/`, `Procedures/`, `Functions/` — Future features
+
 ## Reference
 
 See [docs/specs/01_Initial_Creation.md](docs/specs/01_Initial_Creation.md) for full specification.

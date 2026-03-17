@@ -6,32 +6,39 @@ alwaysApply: false
 
 # SqlTxt.Storage
 
-On-disk persistence with human-readable text formats.
+On-disk persistence with human-readable text formats. Cross-platform (Windows, macOS, Linux).
 
 ## Directory Layout
 
 ```
-/MyDatabase/
-  db.manifest.json
-  /system/
-    tables.meta.txt
-    engine.meta.json
-  /tables/
-    /Users/
-      schema.txt
-      data.txt
-      table.meta.txt
+<DatabaseName>/                    # Root folder = database name
+  db/                              # Database descriptor and properties
+    manifest.json
+  Tables/                          # User tables
+    <TableName>/
+      <TableName>.txt              # Root data file
+      <TableName>_PK.txt           # Primary key (Phase 2+)
+      <TableName>_FK_<LinkedTable>.txt   # Foreign key (Phase 2+)
+      <TableName>_INX_<Columns>_<N>.txt # Index (Phase 2+)
+  Views/                           # Views (late-project)
+  Procedures/                      # Stored procedures (advanced SQL)
+  Functions/                       # User-defined functions (advanced SQL)
+  ~System/                         # System-generated; meta-information
 ```
+
+## System Folder Prefix
+
+The `~` character prefixes system-generated folders (e.g., `~System`). Valid on Windows, macOS, Linux. Use for engine-managed folders.
 
 ## File Formats
 
-- **schema.txt** — `TABLE:`, `FORMAT_VERSION:`, `COLUMNS:` with pipe-delimited column definitions
-- **table.meta.txt** — `ROW_COUNT`, `ACTIVE_ROW_COUNT`, `DELETED_ROW_COUNT`, `LAST_UPDATED_UTC`
-- **data.txt** — Fixed-width positional rows with soft-delete marker (A| or D|)
+- **manifest.json** — Engine version, storage format version
+- **Root data** — Fixed-width positional rows with soft-delete marker (A| or D|)
+- **PK/FK/INX files** — Index structures (Phase 2+)
 
 ## Guidelines
 
-- All formats must be human-readable and diff-friendly.
 - Use `IFileSystemAccessor` to abstract file I/O for testability.
 - Implement `ISchemaStore`, `ITableDataStore`, `IMetadataStore`.
 - Support format versioning for future evolution.
+- All file/folder names must be valid on Windows, macOS, and Linux.
