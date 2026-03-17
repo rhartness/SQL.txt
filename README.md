@@ -42,12 +42,12 @@ docs/
 
 ## Development Phases
 
-| Phase | Scope |
-|-------|-------|
-| **Stage 0** | Solution scaffolding, design docs, Cursor guidance |
-| **Phase 1** | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
-| **Phase 2** | Indexes, PK/FK, constraints, relational metadata |
-| **Phase 3** | VARCHAR, variable-width fields, storage evolution |
+| Phase | Status | Scope |
+|-------|--------|-------|
+| **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
+| **Phase 1** | Next | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
+| **Phase 2** | Planned | Indexes, PK/FK, constraints, relational metadata |
+| **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
 
 ## Build & Test
 

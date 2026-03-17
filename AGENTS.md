@@ -11,12 +11,14 @@
 
 ## Phased Development Approach
 
-| Stage/Phase | Scope |
-|-------------|-------|
-| **Stage 0** | Solution scaffolding, design docs, Cursor guidance (complete) |
-| **Phase 1** | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
-| **Phase 2** | Indexes, PK/FK, constraints, relational metadata |
-| **Phase 3** | VARCHAR, variable-width fields, storage evolution |
+| Stage/Phase | Status | Scope |
+|-------------|--------|-------|
+| **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
+| **Phase 1** | In progress | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
+| **Phase 2** | Planned | Indexes, PK/FK, constraints, relational metadata |
+| **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
+
+**Current focus:** Phase 1. Use [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md) for implementation waves. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
 
 ## Prompt Strategy
 

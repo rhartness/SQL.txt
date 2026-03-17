@@ -41,6 +41,17 @@ alwaysApply: true
 | SqlTxt.Parser | Tokenizer, parser, command AST/DTO, error reporting |
 | SqlTxt.Engine | Create db/table, insert, select, update, delete, table scans |
 
+## Phase Status
+
+| Phase | Status |
+|-------|--------|
+| Stage 0 | Done |
+| Phase 1 | In progress |
+| Phase 2 | Planned |
+| Phase 3 | Planned |
+
+**Current focus:** Phase 1. See [docs/plans/](docs/plans/) and [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md).
+
 ## Storage Layout
 
 - Root folder = database name
