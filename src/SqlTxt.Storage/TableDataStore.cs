@@ -13,17 +13,20 @@ public sealed class TableDataStore : ITableDataStore
     private readonly IRowSerializer _serializer;
     private readonly IRowDeserializer _deserializer;
     private readonly ISchemaStore _schemaStore;
+    private readonly IRowIdSequenceStore _rowIdStore;
 
     public TableDataStore(
         Contracts.IFileSystemAccessor fs,
         IRowSerializer serializer,
         IRowDeserializer deserializer,
-        ISchemaStore schemaStore)
+        ISchemaStore schemaStore,
+        IRowIdSequenceStore? rowIdStore = null)
     {
         _fs = fs;
         _serializer = serializer;
         _deserializer = deserializer;
         _schemaStore = schemaStore;
+        _rowIdStore = rowIdStore ?? new RowIdSequenceStore(fs);
     }
 
     public async Task AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null)
@@ -31,7 +34,19 @@ public sealed class TableDataStore : ITableDataStore
         var table = await _schemaStore.ReadSchemaAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{tableName}' not found");
 
-        var line = _serializer.Serialize(row, table, isActive: true, warnings, tableName) + Environment.NewLine;
+        var rowToSerialize = row;
+        var usesRowId = table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0;
+        if (usesRowId && row.GetValue(TableDefinition.RowIdColumnName) == null)
+        {
+            var nextId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false);
+            var dict = new Dictionary<string, string>(row.Values, StringComparer.OrdinalIgnoreCase)
+            {
+                [TableDefinition.RowIdColumnName] = nextId.ToString()
+            };
+            rowToSerialize = new RowData(dict);
+        }
+
+        var line = _serializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName) + Environment.NewLine;
         var shardIndex = GetAppendShardIndex(databasePath, tableName, table.MaxShardSize, line.Length);
         var dataPath = GetDataFilePath(databasePath, tableName, shardIndex);
 

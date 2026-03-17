@@ -57,10 +57,11 @@ public sealed class SchemaStore : ISchemaStore
 
     private static string SerializeSchema(TableDefinition table)
     {
+        var formatVersion = table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0 ? 2 : FormatVersion;
         var lines = new List<string>
         {
             $"TABLE: {table.TableName}",
-            $"FORMAT_VERSION: {FormatVersion}",
+            $"FORMAT_VERSION: {formatVersion}",
             "COLUMNS:"
         };
 
@@ -77,8 +78,19 @@ public sealed class SchemaStore : ISchemaStore
                 ColumnType.Decimal => $"DECIMAL|{col.Width ?? 0}|{col.Scale ?? 0}",
                 _ => "CHAR|0"
             };
-            lines.Add($"{i + 1}|{col.Name}|{typeStr}");
+            var pk = col.IsPrimaryKey ? "|PK" : "";
+            var uq = col.IsUnique ? "|UQ" : "";
+            lines.Add($"{i + 1}|{col.Name}|{typeStr}{pk}{uq}");
         }
+
+        if (table.PrimaryKey.Count > 0)
+            lines.Add("PRIMARY_KEY: " + string.Join(",", table.PrimaryKey));
+        foreach (var fk in table.ForeignKeys)
+            lines.Add($"FOREIGN_KEY: {fk.ColumnName}|{fk.ReferencedTable}|{fk.ReferencedColumn}");
+        if (table.UniqueColumns.Count > 0)
+            lines.Add("UNIQUE: " + string.Join(",", table.UniqueColumns));
+        foreach (var idx in table.Indexes)
+            lines.Add($"INDEX: {idx.IndexName}|{string.Join(",", idx.ColumnNames)}|{(idx.IsUnique ? "1" : "0")}");
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -87,6 +99,10 @@ public sealed class SchemaStore : ISchemaStore
     {
         var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
         var columns = new List<ColumnDefinition>();
+        var primaryKeyColumns = new List<string>();
+        var foreignKeyDefinitions = new List<ForeignKeyDefinition>();
+        var uniqueConstraintColumns = new List<string>();
+        var indexDefinitions = new List<IndexDefinition>();
         var inColumns = false;
 
         foreach (var line in lines)
@@ -97,6 +113,45 @@ public sealed class SchemaStore : ISchemaStore
                 continue;
             }
 
+            if (line.StartsWith("PRIMARY_KEY:"))
+            {
+                var val = line["PRIMARY_KEY:".Length..].Trim();
+                if (!string.IsNullOrEmpty(val))
+                    primaryKeyColumns.AddRange(val.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0));
+                continue;
+            }
+
+            if (line.StartsWith("FOREIGN_KEY:"))
+            {
+                var val = line["FOREIGN_KEY:".Length..].Trim();
+                var parts = val.Split('|');
+                if (parts.Length >= 3)
+                    foreignKeyDefinitions.Add(new ForeignKeyDefinition(parts[0].Trim(), parts[1].Trim(), parts[2].Trim()));
+                continue;
+            }
+
+            if (line.StartsWith("UNIQUE:"))
+            {
+                var val = line["UNIQUE:".Length..].Trim();
+                if (!string.IsNullOrEmpty(val))
+                    uniqueConstraintColumns.AddRange(val.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0));
+                continue;
+            }
+
+            if (line.StartsWith("INDEX:"))
+            {
+                var val = line["INDEX:".Length..].Trim();
+                var parts = val.Split('|');
+                if (parts.Length >= 2)
+                {
+                    var idxName = parts[0].Trim();
+                    var cols = parts[1].Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                    var isUnique = parts.Length > 2 && parts[2].Trim() == "1";
+                    indexDefinitions.Add(new IndexDefinition(idxName, tableName, cols, isUnique));
+                }
+                continue;
+            }
+
             if (inColumns && line.Contains('|'))
             {
                 var parts = line.Split('|');
@@ -104,6 +159,8 @@ public sealed class SchemaStore : ISchemaStore
                 {
                     var colName = parts[1];
                     var typeStr = parts[2].ToUpperInvariant();
+                    var isPk = parts.Contains("PK", StringComparer.OrdinalIgnoreCase);
+                    var isUq = parts.Contains("UQ", StringComparer.OrdinalIgnoreCase);
                     ColumnType type;
                     int? width = null;
                     int? scale = null;
@@ -112,7 +169,7 @@ public sealed class SchemaStore : ISchemaStore
                     {
                         case "CHAR":
                             type = ColumnType.Char;
-                            width = parts.Length > 3 ? int.Parse(parts[3]) : 0;
+                            width = parts.Length > 3 && int.TryParse(parts[3], out var w) ? w : 0;
                             break;
                         case "INT":
                             type = ColumnType.Int;
@@ -137,11 +194,18 @@ public sealed class SchemaStore : ISchemaStore
                             break;
                     }
 
-                    columns.Add(new ColumnDefinition(colName, type, width, scale));
+                    columns.Add(new ColumnDefinition(colName, type, width, scale, isPk, isUq));
                 }
             }
         }
 
-        return new TableDefinition(tableName, columns);
+        return new TableDefinition(
+            tableName,
+            columns,
+            MaxShardSize: null,
+            PrimaryKeyColumns: primaryKeyColumns.Count > 0 ? primaryKeyColumns : null,
+            ForeignKeyDefinitions: foreignKeyDefinitions.Count > 0 ? foreignKeyDefinitions : null,
+            UniqueConstraintColumns: uniqueConstraintColumns.Count > 0 ? uniqueConstraintColumns : null,
+            IndexDefinitions: indexDefinitions.Count > 0 ? indexDefinitions : null);
     }
 }

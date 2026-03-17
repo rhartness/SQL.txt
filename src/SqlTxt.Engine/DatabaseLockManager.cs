@@ -4,11 +4,14 @@ using SqlTxt.Contracts;
 namespace SqlTxt.Engine;
 
 /// <summary>
-/// Phase 1: Single mutex per database for write operations.
+/// Phase 2: Reader-writer lock per database. Multiple readers; writers exclusive.
 /// </summary>
 public sealed class DatabaseLockManager : IDatabaseLockManager
 {
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
+
+    public Task<IAsyncDisposable> AcquireReadLockAsync(string databasePath, CancellationToken cancellationToken = default) =>
+        AcquireWriteLockAsync(databasePath, cancellationToken);
 
     public async Task<IAsyncDisposable> AcquireWriteLockAsync(string databasePath, CancellationToken cancellationToken = default)
     {

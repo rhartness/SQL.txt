@@ -1,15 +1,19 @@
 namespace SqlTxt.Contracts;
 
 /// <summary>
-/// Manages database access locks. Phase 1: single mutex per database.
+/// Manages database access locks. Phase 2: read/write locks; NOLOCK skips read lock.
 /// </summary>
 public interface IDatabaseLockManager
 {
     /// <summary>
-    /// Acquires a write lock for the database. Caller must release via Dispose.
+    /// Acquires a read lock for the database. Caller must release via Dispose.
+    /// Multiple readers allowed; blocks writers. Use NOLOCK to skip.
     /// </summary>
-    /// <param name="databasePath">Path to database.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Disposable that releases the lock.</returns>
+    Task<IAsyncDisposable> AcquireReadLockAsync(string databasePath, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Acquires a write lock for the database. Caller must release via Dispose.
+    /// Exclusive; blocks readers and writers.
+    /// </summary>
     Task<IAsyncDisposable> AcquireWriteLockAsync(string databasePath, CancellationToken cancellationToken = default);
 }

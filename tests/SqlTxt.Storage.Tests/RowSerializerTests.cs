@@ -72,4 +72,33 @@ public class RowSerializerTests
         Assert.Single(warnings);
         Assert.Contains("Truncated", warnings[0]);
     }
+
+    [Fact]
+    public void SerializeAndDeserialize_WithRowId_RoundTrips()
+    {
+        var table = new TableDefinition("T", new[]
+        {
+            new ColumnDefinition("Id", ColumnType.Char, 5),
+            new ColumnDefinition("Name", ColumnType.Char, 10)
+        }, PrimaryKeyColumns: new[] { "Id" });
+        var row = new RowData(new Dictionary<string, string>
+        {
+            [TableDefinition.RowIdColumnName] = "42",
+            ["Id"] = "1",
+            ["Name"] = "Alice"
+        });
+        var ser = new FixedWidthRowSerializer();
+        var des = new FixedWidthRowDeserializer();
+
+        var s = ser.Serialize(row, table);
+        Assert.StartsWith("A|", s);
+        Assert.Contains("42", s);
+        Assert.Contains("1", s);
+        Assert.Contains("Alice", s);
+        var outRow = des.Deserialize(s, table, out var isActive);
+        Assert.True(isActive);
+        Assert.Equal("42", outRow.GetValue(TableDefinition.RowIdColumnName));
+        Assert.Equal("1", outRow.GetValue("Id"));
+        Assert.Equal("Alice", outRow.GetValue("Name"));
+    }
 }

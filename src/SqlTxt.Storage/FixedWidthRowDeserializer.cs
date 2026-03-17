@@ -26,10 +26,16 @@ public sealed class FixedWidthRowDeserializer : IRowDeserializer
         var parts = data.Split('|');
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        for (var i = 0; i < table.Columns.Count && i < parts.Length; i++)
+        var hasRowId = parts.Length == table.Columns.Count + 1;
+        var offset = hasRowId ? 1 : 0;
+
+        if (hasRowId)
+            values[TableDefinition.RowIdColumnName] = parts[0].Trim();
+
+        for (var i = 0; i < table.Columns.Count && i + offset < parts.Length; i++)
         {
             var col = table.Columns[i];
-            var raw = parts[i].Trim();
+            var raw = parts[i + offset].Trim();
             var decoded = col.Type == ColumnType.Char ? FieldCodec.Decode(raw) : raw;
             values[col.Name] = decoded;
         }

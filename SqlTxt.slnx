@@ -15,6 +15,7 @@
     <Project Path="tests/SqlTxt.Engine.Tests/SqlTxt.Engine.Tests.csproj" />
     <Project Path="tests/SqlTxt.IntegrationTests/SqlTxt.IntegrationTests.csproj" />
     <Project Path="tests/SqlTxt.Parser.Tests/SqlTxt.Parser.Tests.csproj" />
+    <Project Path="tests/SqlTxt.Service.Tests/SqlTxt.Service.Tests.csproj" />
     <Project Path="tests/SqlTxt.Storage.Tests/SqlTxt.Storage.Tests.csproj" />
   </Folder>
 </Solution>

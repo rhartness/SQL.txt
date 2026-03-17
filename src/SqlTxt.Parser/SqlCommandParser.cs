@@ -47,8 +47,30 @@ public sealed class SqlCommandParser : ICommandParser
         {
             "DATABASE" => ParseCreateDatabase(),
             "TABLE" => ParseCreateTable(),
-            _ => throw ParseError($"Expected DATABASE or TABLE after CREATE; got {t.Value}", t.Line, t.Column)
+            "UNIQUE" => ParseCreateIndexWithUnique(),
+            "INDEX" => ParseCreateIndex(isUnique: false),
+            _ => throw ParseError($"Expected DATABASE, TABLE, or INDEX after CREATE; got {t.Value}", t.Line, t.Column)
         };
+    }
+
+    private CreateIndexCommand ParseCreateIndexWithUnique()
+    {
+        ExpectKeyword("INDEX");
+        return ParseCreateIndex(isUnique: true);
+    }
+
+    private CreateIndexCommand ParseCreateIndex(bool isUnique)
+    {
+        var (indexName, _, _) = ExpectIdentifier();
+        IdentifierValidator.ValidateTableName(indexName, "Index");
+        ExpectKeyword("ON");
+        var (tableName, _, _) = ExpectIdentifier();
+        IdentifierValidator.ValidateTableName(tableName);
+        Expect(TokenType.LeftParen);
+        var columnNames = ParseIdentifierList();
+        Expect(TokenType.RightParen);
+        OptionalSemicolon();
+        return new CreateIndexCommand(indexName, tableName, columnNames, isUnique);
     }
 
     private CreateDatabaseCommand ParseCreateDatabase()
@@ -90,12 +112,77 @@ public sealed class SqlCommandParser : ICommandParser
         Expect(TokenType.LeftParen);
 
         var columns = new List<ColumnDefinition>();
+        var primaryKeyColumns = new List<string>();
+        var foreignKeyDefinitions = new List<ForeignKeyDefinition>();
+        var uniqueConstraintColumns = new List<string>();
+
         while (true)
         {
-            var (colName, _, _, fromBrackets) = ExpectIdentifierOrBracketed();
-            IdentifierValidator.ValidateColumnName(colName, fromBrackets);
-            var colType = ParseColumnType();
-            columns.Add(colType with { Name = colName });
+            if (Peek().Type == TokenType.RightParen)
+                break;
+
+            var kw = Peek().Type == TokenType.Keyword ? Peek().Value.ToUpperInvariant() : null;
+
+            if (kw == "PRIMARY")
+            {
+                Advance();
+                ExpectKeyword("KEY");
+                Expect(TokenType.LeftParen);
+                var pkCols = ParseIdentifierList();
+                Expect(TokenType.RightParen);
+                primaryKeyColumns.AddRange(pkCols);
+            }
+            else if (kw == "UNIQUE")
+            {
+                Advance();
+                Expect(TokenType.LeftParen);
+                var uqCols = ParseIdentifierList();
+                Expect(TokenType.RightParen);
+                uniqueConstraintColumns.AddRange(uqCols);
+            }
+            else if (kw == "FOREIGN")
+            {
+                Advance();
+                ExpectKeyword("KEY");
+                Expect(TokenType.LeftParen);
+                var (fkCol, _, _, fkBracketed) = ExpectIdentifierOrBracketed();
+                IdentifierValidator.ValidateColumnName(fkCol, fkBracketed);
+                Expect(TokenType.RightParen);
+                ExpectKeyword("REFERENCES");
+                var refTable = ExpectIdentifier().Name;
+                IdentifierValidator.ValidateTableName(refTable);
+                Expect(TokenType.LeftParen);
+                var (refCol, _, _, refBracketed) = ExpectIdentifierOrBracketed();
+                IdentifierValidator.ValidateColumnName(refCol, refBracketed);
+                Expect(TokenType.RightParen);
+                foreignKeyDefinitions.Add(new ForeignKeyDefinition(fkCol, refTable, refCol));
+            }
+            else
+            {
+                var (colName, _, _, fromBrackets) = ExpectIdentifierOrBracketed();
+                IdentifierValidator.ValidateColumnName(colName, fromBrackets);
+                var colType = ParseColumnType();
+
+                if (Peek().Type == TokenType.Keyword)
+                {
+                    var pk = Peek().Value.Equals("PRIMARY", StringComparison.OrdinalIgnoreCase);
+                    if (pk)
+                    {
+                        Advance();
+                        ExpectKeyword("KEY");
+                        colType = colType with { IsPrimaryKey = true };
+                        primaryKeyColumns.Add(colName);
+                    }
+                    else if (Peek().Value.Equals("UNIQUE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Advance();
+                        colType = colType with { IsUnique = true };
+                        uniqueConstraintColumns.Add(colName);
+                    }
+                }
+
+                columns.Add(colType with { Name = colName });
+            }
 
             if (Peek().Type == TokenType.RightParen)
                 break;
@@ -105,8 +192,29 @@ public sealed class SqlCommandParser : ICommandParser
         Expect(TokenType.RightParen);
         OptionalSemicolon();
 
-        var table = new TableDefinition(tableName, columns);
+        var table = new TableDefinition(
+            tableName,
+            columns,
+            MaxShardSize: null,
+            PrimaryKeyColumns: primaryKeyColumns.Count > 0 ? primaryKeyColumns : null,
+            ForeignKeyDefinitions: foreignKeyDefinitions.Count > 0 ? foreignKeyDefinitions : null,
+            UniqueConstraintColumns: uniqueConstraintColumns.Count > 0 ? uniqueConstraintColumns : null);
         return new CreateTableCommand(table);
+    }
+
+    private List<string> ParseIdentifierList()
+    {
+        var list = new List<string>();
+        while (true)
+        {
+            var (name, _, _, fromBrackets) = ExpectIdentifierOrBracketed();
+            IdentifierValidator.ValidateColumnName(name, fromBrackets);
+            list.Add(name);
+            if (Peek().Type == TokenType.RightParen)
+                break;
+            Expect(TokenType.Comma);
+        }
+        return list;
     }
 
     private ColumnDefinition ParseCharType()
@@ -215,6 +323,16 @@ public sealed class SqlCommandParser : ICommandParser
         var tableName = ExpectIdentifier().Name;
         IdentifierValidator.ValidateTableName(tableName);
 
+        var withNoLock = false;
+        if (Peek().Type == TokenType.Keyword && Peek().Value.Equals("WITH", StringComparison.OrdinalIgnoreCase))
+        {
+            Advance();
+            Expect(TokenType.LeftParen);
+            ExpectKeyword("NOLOCK");
+            Expect(TokenType.RightParen);
+            withNoLock = true;
+        }
+
         string? whereCol = null;
         string? whereVal = null;
         if (Peek().Type == TokenType.Keyword && Peek().Value.Equals("WHERE", StringComparison.OrdinalIgnoreCase))
@@ -240,7 +358,7 @@ public sealed class SqlCommandParser : ICommandParser
         }
 
         OptionalSemicolon();
-        return new SelectCommand(tableName, columns?.Count > 0 ? columns : null, whereCol, whereVal);
+        return new SelectCommand(tableName, columns?.Count > 0 ? columns : null, whereCol, whereVal, withNoLock);
     }
 
     private UpdateCommand ParseUpdate()

@@ -14,6 +14,15 @@ public sealed class FixedWidthRowSerializer : IRowSerializer
         var parts = new List<string>();
         var tbl = tableName ?? table.TableName;
 
+        var rowId = row.GetValue(TableDefinition.RowIdColumnName);
+        if (rowId != null)
+        {
+            var padded = rowId.PadLeft(TableDefinition.RowIdStorageWidth);
+            if (padded.Length > TableDefinition.RowIdStorageWidth)
+                padded = padded[^TableDefinition.RowIdStorageWidth..];
+            parts.Add(padded);
+        }
+
         foreach (var col in table.Columns)
         {
             var value = row.GetValue(col.Name) ?? string.Empty;

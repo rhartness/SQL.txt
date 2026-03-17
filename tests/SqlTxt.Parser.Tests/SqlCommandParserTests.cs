@@ -112,4 +112,47 @@ public class SqlCommandParserTests
         Assert.Single(create.Table.Columns);
         Assert.Equal("My Column", create.Table.Columns[0].Name);
     }
+
+    [Fact]
+    public void Parse_CreateTableWithPrimaryKey_ParsesCorrectly()
+    {
+        var cmd = _parser.Parse("CREATE TABLE T (Id CHAR(10) PRIMARY KEY, Name CHAR(50))");
+        Assert.IsType<CreateTableCommand>(cmd);
+        var create = (CreateTableCommand)cmd;
+        Assert.Single(create.Table.PrimaryKey);
+        Assert.Equal("Id", create.Table.PrimaryKey[0]);
+    }
+
+    [Fact]
+    public void Parse_CreateTableWithForeignKey_ParsesCorrectly()
+    {
+        var cmd = _parser.Parse("CREATE TABLE Page (Id CHAR(10), UserId CHAR(10), FOREIGN KEY (UserId) REFERENCES User(Id))");
+        Assert.IsType<CreateTableCommand>(cmd);
+        var create = (CreateTableCommand)cmd;
+        Assert.Single(create.Table.ForeignKeys);
+        Assert.Equal("UserId", create.Table.ForeignKeys[0].ColumnName);
+        Assert.Equal("User", create.Table.ForeignKeys[0].ReferencedTable);
+        Assert.Equal("Id", create.Table.ForeignKeys[0].ReferencedColumn);
+    }
+
+    [Fact]
+    public void Parse_CreateIndex_ParsesCorrectly()
+    {
+        var cmd = _parser.Parse("CREATE INDEX IX_Users_Name ON Users(Name)");
+        Assert.IsType<CreateIndexCommand>(cmd);
+        var create = (CreateIndexCommand)cmd;
+        Assert.Equal("IX_Users_Name", create.IndexName);
+        Assert.Equal("Users", create.TableName);
+        Assert.Single(create.ColumnNames);
+        Assert.Equal("Name", create.ColumnNames[0]);
+    }
+
+    [Fact]
+    public void Parse_SelectWithNoLock_ParsesCorrectly()
+    {
+        var cmd = _parser.Parse("SELECT * FROM Users WITH (NOLOCK)");
+        Assert.IsType<SelectCommand>(cmd);
+        var select = (SelectCommand)cmd;
+        Assert.True(select.WithNoLock);
+    }
 }

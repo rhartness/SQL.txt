@@ -7,8 +7,10 @@ namespace SqlTxt.Contracts.Commands;
 /// <param name="ColumnNames">Column names to project, or null for SELECT *.</param>
 /// <param name="WhereColumn">Column for equality filter, or null for no filter.</param>
 /// <param name="WhereValue">Value for equality filter.</param>
+/// <param name="WithNoLock">If true, skip lock acquisition (allows dirty reads).</param>
 public sealed record SelectCommand(
     string TableName,
     IReadOnlyList<string>? ColumnNames,
     string? WhereColumn = null,
-    string? WhereValue = null);
+    string? WhereValue = null,
+    bool WithNoLock = false);
