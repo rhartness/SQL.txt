@@ -28,6 +28,7 @@ The project has two goals:
 * Structured progression from simple engine to more capable relational engine
 * Implemented in phases with strict scope boundaries
 * Query optimization sophistication (Baked in, but scale up capability with phases)
+* **Shardable files** — With each phase, use absolute best practices for breaking up parts that might grow very large. Table data, metadata, indexes, multi-width field files must be shardable. Per-table MaxShardSize parameter.
 
 ### Non-Goals for Initial Releases
 
@@ -45,9 +46,38 @@ The project has two goals:
 The project will be built in **stages**:
 
 * **Stage 0:** Solution scaffolding, architecture, specifications, Cursor-ready prompts, test foundation
-* **Phase 1:** Core engine with schema creation, metadata storage, simple parser, single-table CRUD, fixed-width fields only
-* **Phase 2:** Indexes, PK/FK, constraints, relational metadata
+* **Phase 1:** Core engine with schema creation, metadata storage, simple parser, single-table CRUD, fixed-width fields; async API; NuGet packaging; basic locking
+* **Phase 2:** Indexes, PK/FK, constraints, relational metadata; full lock manager; WITH (NOLOCK); installable Service
 * **Phase 3:** Variable-width fields (`VARCHAR`), storage evolution, extended parsing and validation
+
+---
+
+## 4. Deployment and API
+
+### Three Build Types
+
+* **CLI executable** — Standalone .exe (Windows) or binary (macOS, Linux). SqlTxt.Cli.
+* **NuGet API DLL** — Library package (SqlTxt) consumable by other APIs, websites, applications. All DB functions accessible via async API.
+* **Installable Service** — Windows Service, systemd (Linux), launchd (macOS). SqlTxt.Service (Phase 2).
+
+### API Requirements
+
+* All DB functions accessible through the API
+* Async paradigms (Task-based)
+* Support concurrent API calls when embedded in APIs or websites
+
+See `docs/architecture/07-api-and-deployment.md`.
+
+---
+
+## 5. Concurrency
+
+* **Lock/check system** — When a data-object is accessed, integrate lock acquisition
+* **Phase 1:** Basic single-writer lock (mutex per database)
+* **Phase 2:** Full lock manager (read/write locks); multiple concurrent readers
+* **WITH (NOLOCK)** — SQL-like syntax for read-only queries that skip lock (faster). Phase 2.
+
+See `docs/architecture/08-concurrency-and-locking.md`.
 
 ---
 
@@ -83,6 +113,7 @@ src/
   SqlTxt.Contracts/
   SqlTxt.Cli/
   SqlTxt.SampleApp/
+  SqlTxt.Service/          # Phase 2: installable service
 
 tests/
   SqlTxt.Core.Tests/
@@ -250,6 +281,7 @@ IRowDeserializer
 * golden file tests
 * parser cases
 * corruption handling
+* test-first paradigm; full coverage
 
 ## `docs/architecture/05-documentation-standards.md`
 
@@ -257,6 +289,30 @@ IRowDeserializer
 * Public API documentation
 * CLI usage documentation
 * feature documentation
+
+## `docs/architecture/06-durability-and-sharding.md`
+
+* sharding (MaxShardSize)
+* fixed-width text encoding
+* error handling (file, row, position)
+
+## `docs/decisions/adr-003-phase1-design-decisions.md`
+
+* semicolon, path, schema location, data types, NumberFormat, TextEncoding, sharding, testing, error handling
+
+## `docs/architecture/07-api-and-deployment.md`
+
+* three build types (CLI, Service, NuGet)
+* async API surface
+
+## `docs/architecture/08-concurrency-and-locking.md`
+
+* lock coordinator; Phase 1 basic, Phase 2 full
+* WITH (NOLOCK)
+
+## `docs/decisions/adr-004-api-service-nuget-concurrency.md`
+
+* API, Service, NuGet, concurrency decisions
 
 ## `docs/prompts/phase-1-cursor-prompts.md`
 
@@ -348,6 +404,10 @@ Creates:
 * schema folder
 * table folder
 * metadata folder
+
+### Path
+
+Support **both** explicit path and relative path. When relative, use current working directory. Document explicitly in CLI and API.
 
 ---
 
@@ -462,7 +522,7 @@ DELETE FROM Users WHERE Id = '1';
 
 * case-insensitive keywords
 * identifiers may be case-preserving but normalized internally
-* semicolon optional or required; pick one and keep strict
+* **semicolon optional** — parser accepts statements with or without trailing semicolon
 * string literals single-quoted
 * no escaped quote support initially unless easy to include
 * no comments required in first parser wave
@@ -473,22 +533,37 @@ DELETE FROM Users WHERE Id = '1';
 
 ## Required Initial Types
 
-Use a deliberately narrow set first:
+* `CHAR(n)` — Fixed-width character
+* `INT` — 32-bit integer
+* `TINYINT` — 8-bit integer
+* `BIGINT` — 64-bit integer
+* `BIT` — Stored as `"1"` or `"0"` (not true/false)
+* `DECIMAL(p,s)` — Stored as text equivalent; fixed width; pad with zeros
 
-* `CHAR(n)`
-* optional numeric fixed-width types later in Phase 1.1 if desired
+### DECIMAL Storage
 
-### Recommendation
+When decimal values are stored as text, the field must be fixed width. Pad with zeros (or most efficient approach) to achieve consistent byte length per row.
 
-Start with **all values internally treated as strings** for the first working version.
+### Numeric Type Storage Widths
 
-Then add typed validation in a later wave:
+For fixed-width storage, numeric types use default widths (or explicit width if supported): INT ≈ 11 chars, TINYINT ≈ 4, BIGINT ≈ 20, BIT = 1, DECIMAL = p+s+2 (sign, decimal point).
 
-* `INT`
-* `BOOL`
-* `DATE`
+### CREATE DATABASE Parameters
 
-That keeps the first implementation smaller and lets parsing/storage stabilize early.
+* **NumberFormat** (optional) — Default: standard (English) format with decimal `.`. Allow override for other numeric string formats when writing values (e.g., locale-specific decimal separator).
+* **TextEncoding** (optional) — Only **fixed-width** encodings. Each character = fixed number of bytes. No UTF-8 or other variable-length encodings. Default: ASCII or platform default fixed-width.
+
+### Sharding
+
+All data files (table data, metadata, indexes when added) must be **shardable** as they grow. Per-table parameter: **MaxShardSize**. When a table data file exceeds this, create new shard. Indexes (Phase 2+) reference shard files. Do not shard indexes initially; shard table data only. See `docs/architecture/06-durability-and-sharding.md`.
+
+### Error Handling
+
+When errors occur (e.g., corrupted files from manual edit): provide **file name, row number, character position** (or closest). Exception messages must explain how user interaction might have caused the issue. Enable easy inspection.
+
+### Testing
+
+**Test-first** paradigm. Full unit test coverage per functional implementation. Test: high values, low values, multiple inputs, unexpected data, exception paths. Target: very durable application.
 
 ---
 
@@ -531,6 +606,12 @@ The root folder is the database name. A `db/` folder contains database-level pro
 ## 6.2 Schema File Format
 
 Human-readable, deterministic, easy to diff.
+
+### Schema Location
+
+Schema stored in **both** locations:
+* **~System/** — Master source of truth; engine always reads from here
+* **Tables/\<TableName>/** — Reference copy only; for human inspection; may be regenerated from ~System
 
 ### Example `schema.txt`
 
@@ -1070,13 +1151,13 @@ Add engine/storage version file early:
 
 ## 1. NuGet Consumer Goal
 
-A user should be able to do something like:
+A user should be able to do something like (async API):
 
 ```csharp
-var engine = SqlTxtDatabase.Open("C:\\Data\\MyDb");
-engine.Execute("CREATE TABLE Users (Id CHAR(10), Name CHAR(50));");
-engine.Execute("INSERT INTO Users (Id, Name) VALUES ('1', 'Richard');");
-var result = engine.ExecuteQuery("SELECT * FROM Users;");
+var engine = await SqlTxt.OpenAsync("C:\\Data\\MyDb");
+await engine.ExecuteAsync("CREATE TABLE Users (Id CHAR(10), Name CHAR(50))");
+await engine.ExecuteAsync("INSERT INTO Users (Id, Name) VALUES ('1', 'Richard')");
+var result = await engine.ExecuteQueryAsync("SELECT * FROM Users");
 ```
 
 ## 2. CLI Goal

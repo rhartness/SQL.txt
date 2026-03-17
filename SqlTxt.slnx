@@ -1,5 +1,7 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/SqlTxt/SqlTxt.csproj" />
+    <Project Path="src/SqlTxt.Service/SqlTxt.Service.csproj" />
     <Project Path="src/SqlTxt.Cli/SqlTxt.Cli.csproj" />
     <Project Path="src/SqlTxt.Contracts/SqlTxt.Contracts.csproj" />
     <Project Path="src/SqlTxt.Core/SqlTxt.Core.csproj" />

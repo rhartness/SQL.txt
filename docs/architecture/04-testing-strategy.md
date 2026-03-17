@@ -1,5 +1,9 @@
 # Testing Strategy
 
+## Paradigm
+
+**Test-first (TDD).** Full unit test coverage per functional implementation. Test: high values, low values, multiple inputs, unexpected data, exception paths. Target: very durable application.
+
 ## Unit Tests
 
 ### Parser
@@ -57,6 +61,8 @@ These support Cursor-driven implementation and regression detection.
 
 - Malformed schema detection
 - Invalid metadata recovery
+- When errors occur: provide **file name, row number, character position** (or closest)
+- Exception messages: explain how user interaction (e.g., manual file edit) might have caused the issue
 - Future: checksum or validation on read
 
 ## Test Organization

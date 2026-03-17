@@ -6,6 +6,8 @@ alwaysApply: false
 
 # SqlTxt Testing
 
+**Test-first paradigm.** Full unit test coverage per functional implementation. Test: high values, low values, multiple inputs, unexpected data, exception paths.
+
 ## Unit Tests
 
 - Parser: tokenization, statement parsing, identifier validation
@@ -33,3 +35,4 @@ Use known input and expected output files for:
 - Prefer deterministic, isolated tests.
 - Mock `IFileSystemAccessor` for storage unit tests.
 - Integration tests should assert exact file contents where appropriate.
+- Test corrupted file handling: verify exceptions include file name, row number, character position.

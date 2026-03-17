@@ -51,7 +51,7 @@ CREATE TABLE PageContent (
     Id CHAR(10),
     PageId CHAR(10),
     Content CHAR(5000),
-    Version CHAR(10),
+    Version INT,
     CreatedById CHAR(10),
     CreatedAt CHAR(24)
 );

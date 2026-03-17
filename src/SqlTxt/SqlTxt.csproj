@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Pack>true</Pack>
+    <PackageId>SqlTxt</PackageId>
+    <PackageVersion>0.1.0</PackageVersion>
+    <Title>SqlTxt</Title>
+    <PackageDescription>Lightweight, embeddable .NET database engine with human-readable text file storage. Use in APIs, websites, or CLI.</PackageDescription>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SqlTxt.Engine\SqlTxt.Engine.csproj" />
+  </ItemGroup>
+
+</Project>

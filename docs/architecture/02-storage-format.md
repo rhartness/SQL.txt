@@ -49,9 +49,19 @@ Contains all properties specific to the database itself. It describes the databa
 ```json
 {
   "engineVersion": "0.1.0",
-  "storageFormatVersion": 1
+  "storageFormatVersion": 1,
+  "numberFormat": "standard",
+  "textEncoding": "ascii"
 }
 ```
+
+- **numberFormat** — Optional; default `"standard"` (decimal `.`). Override for locale-specific numeric formatting.
+- **textEncoding** — Optional; only fixed-width encodings (each character = fixed bytes). No UTF-8. Default: ASCII or platform fixed-width.
+
+### Schema Location
+
+- **~System/** — Master source of truth; engine always reads from here
+- **Tables/\<TableName>/** — Reference copy only; for human inspection
 
 ## Tables/ Folder
 
@@ -100,6 +110,10 @@ Similar to Tables; each view has a folder. Views are stored queries over tables.
 
 One file per stored procedure or function. File name = object name. (Advanced SQL feature.)
 
+## Sharding
+
+Per-table **MaxShardSize** parameter. When table data file exceeds this, create new shard: `<TableName>_1.txt`, `<TableName>_2.txt`, etc. Indexes (Phase 2+) reference shard + position. Do not shard indexes initially. See [06-durability-and-sharding.md](06-durability-and-sharding.md).
+
 ## Versioning Strategy
 
 - `FORMAT_VERSION` in schema enables future format evolution
@@ -111,3 +125,4 @@ One file per stored procedure or function. File name = object name. (Advanced SQ
 - Table/view/procedure/function names map to folder/file names
 - Case-preserving; normalized for lookup
 - Index files: `<TableName>_INX_<ColumnNames>_<Increment>.txt` — column names in index order, underscore-separated; increment used when multiple indexes share the same column list
+- Sharded data: `<TableName>_1.txt`, `<TableName>_2.txt`, etc.

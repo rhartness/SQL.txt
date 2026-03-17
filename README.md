@@ -16,6 +16,8 @@ A lightweight, embeddable .NET database engine that persists schemas, metadata, 
 - **Human-readable on-disk storage** — Inspect and debug data with any text editor
 - **Lightweight local embedded usage** — No server, no external dependencies
 - **Cross-platform** — Windows, macOS, Linux
+- **Three build types** — CLI executable, NuGet API DLL, installable Service (Phase 2)
+- **Async API** — All DB functions via async methods; supports concurrent API calls
 - **Structured progression** — Phased implementation from simple to relational engine
 - **.NET 8** — Modern C# with async/await support
 
@@ -55,6 +57,14 @@ docs/
 dotnet build
 dotnet test
 ```
+
+## Deployment
+
+| Build | Description |
+|-------|-------------|
+| **CLI** | Standalone executable; `sqltxt create-db`, `sqltxt exec`, etc. |
+| **NuGet** | SqlTxt package; embed in APIs, websites |
+| **Service** | Installable service (Phase 2) |
 
 ## Documentation
 

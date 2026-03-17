@@ -10,10 +10,10 @@ Shared models and interfaces used across the engine. No project dependencies.
 
 ## Domain Models
 
-- `DatabaseDefinition` — Database metadata
-- `TableDefinition` — Table name, columns
+- `DatabaseDefinition` — Database metadata (NumberFormat, TextEncoding)
+- `TableDefinition` — Table name, columns, MaxShardSize
 - `ColumnDefinition` — Name, type, width
-- `ColumnType` — CHAR, INT, etc. (Phase 1: CHAR only)
+- `ColumnType` — CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL
 - `RowData` — Row representation
 - `QueryResult` / `EngineResult` — Execution results
 
@@ -27,6 +27,8 @@ Shared models and interfaces used across the engine. No project dependencies.
 - `DeleteCommand`
 
 ## Exception Hierarchy
+
+All exceptions support **file name, row number, character position** when applicable. Explain how user interaction might have caused the issue.
 
 ```
 SqlTxtException (base)

@@ -17,10 +17,13 @@ SqlTxt.Storage (Contracts, Core)    SqlTxt.Parser (Contracts, Core)
                     ↑
             SqlTxt.Engine (Contracts, Core, Storage, Parser)
                     ↑
-    ┌───────────────┴───────────────┐
-    ↑                               ↑
-SqlTxt.Cli                    SqlTxt.SampleApp
+    ┌───────────────┬───────────────┬───────────────┐
+    ↑               ↑               ↑               ↑
+SqlTxt.Cli    SqlTxt.SampleApp  SqlTxt.Service  NuGet (SqlTxt)
 ```
+
+- **SqlTxt.Service** — Phase 2; installable service
+- **NuGet** — Package Engine for embedding in APIs, websites
 
 ## Layers
 
@@ -47,7 +50,12 @@ SqlTxt.Cli                    SqlTxt.SampleApp
 
 - Abstracted via `IFileSystemAccessor`
 - Enables testing without real disk I/O
-- Single-process friendly; basic file locking on writes
+
+### Concurrency Layer
+
+- Lock coordinator for concurrent API calls
+- Phase 1: basic single-writer lock
+- Phase 2: read/write locks; WITH (NOLOCK)
 
 ## Key Interfaces
 
@@ -60,6 +68,7 @@ SqlTxt.Cli                    SqlTxt.SampleApp
 | `IMetadataStore` | Metadata persistence |
 | `IFileSystemAccessor` | File I/O abstraction |
 | `IRowSerializer` / `IRowDeserializer` | Row format handling |
+| `IDatabaseLockManager` | Lock coordination (Phase 1); `IDataLockManager` (Phase 2) |
 
 ## Extensibility
 
@@ -72,3 +81,5 @@ SqlTxt.Cli                    SqlTxt.SampleApp
 - [02-storage-format.md](02-storage-format.md) — On-disk layout
 - [03-sql-subset.md](03-sql-subset.md) — Supported syntax
 - [04-testing-strategy.md](04-testing-strategy.md) — Test approach
+- [07-api-and-deployment.md](07-api-and-deployment.md) — Build types, API
+- [08-concurrency-and-locking.md](08-concurrency-and-locking.md) — Locking

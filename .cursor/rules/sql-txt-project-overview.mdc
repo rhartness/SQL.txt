@@ -41,6 +41,17 @@ alwaysApply: true
 | SqlTxt.Parser | Tokenizer, parser, command AST/DTO, error reporting |
 | SqlTxt.Engine | Create db/table, insert, select, update, delete, table scans |
 
+## Build Types
+
+- **CLI exe** — SqlTxt.Cli
+- **NuGet API DLL** — SqlTxt package; async API for embedding
+- **Service** — SqlTxt.Service (Phase 2)
+
+## API and Concurrency
+
+- All DB functions via async API (ExecuteAsync, ExecuteQueryAsync, OpenAsync)
+- Lock coordinator: Phase 1 single-writer; Phase 2 multi-reader + WITH (NOLOCK)
+
 ## Phase Status
 
 | Phase | Status |

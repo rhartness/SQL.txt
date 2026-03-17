@@ -45,11 +45,17 @@
 - As a developer, I can update and delete rows so that I can modify my data.
 - As a consumer, I can embed the engine via NuGet so that I need only a package reference and writable directory.
 
+## Deployment Targets
+
+- **CLI executable** — Standalone .exe (Windows) or binary (macOS, Linux)
+- **NuGet API DLL** — Library for embedding in APIs, websites
+- **Installable Service** — Windows Service, systemd, launchd (Phase 2)
+
 ## Constraints
 
 - .NET 8 (or compatible)
 - Cross-platform: Windows, macOS, Linux
-- Single-process friendly; basic file locking
+- Lock coordinator for concurrent API calls
 - No external database server
 - Human-readable formats only
 - Case-insensitive keywords; case-preserving identifiers

@@ -15,10 +15,23 @@
 
 - Case-insensitive keywords
 - Identifiers case-preserving, normalized internally
-- Semicolon required (or optional; pick one and stay consistent)
+- **Semicolon optional** — Parser accepts with or without
 - String literals single-quoted
 - No escaped quote support initially
 - No comments required
+
+## Phase 1 Data Types
+
+- `CHAR(n)` — Fixed-width character
+- `INT` — 32-bit integer
+- `TINYINT` — 8-bit integer
+- `BIGINT` — 64-bit integer
+- `BIT` — Stored as `"1"` or `"0"`
+- `DECIMAL(p,s)` — Fixed-width text; pad with zeros
+
+## Phase 2 Additions
+
+- `SELECT ... FROM table WITH (NOLOCK)` — Skip lock for read-only queries (faster)
 
 ## Phase 1 Exclusions
 
@@ -37,11 +50,11 @@
 - SELECT, FROM, WHERE
 - UPDATE, SET
 - DELETE
-- CHAR
+- CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL
 
 ## Parsing Assumptions
 
 - Single-table only
 - Equality-only predicates: `WHERE Column = 'literal'`
 - Projection: `*` or explicit column list
-- Fixed-width types only: `CHAR(n)` with required width
+- Fixed-width types only
