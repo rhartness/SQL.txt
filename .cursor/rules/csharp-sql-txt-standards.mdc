@@ -1,0 +1,37 @@
+---
+description: C# conventions for SQL.txt project
+globs: "**/*.cs"
+alwaysApply: false
+---
+
+# C# Standards for SQL.txt
+
+## Async and I/O
+
+- Use `async`/`await` for all database and file operations.
+- Avoid `.Result` or `.Wait()` on async code.
+- Use `ConfigureAwait(false)` in library code.
+
+## Error Handling
+
+- Never swallow exceptions.
+- Use the project exception hierarchy: `SqlTxtException`, `ParseException`, `SchemaException`, `ValidationException`, `StorageException`, `ConstraintViolationException`.
+- Log or rethrow; do not return null to hide failures.
+
+## Immutability
+
+- Prefer immutable types for contracts and domain models.
+- Use `readonly` for fields that are set once.
+- Use records or init-only properties where appropriate.
+
+## Validation
+
+- Validate inputs at boundaries (parser, engine entry points).
+- Use guard clauses: `ArgumentNullException.ThrowIfNull(arg)`.
+- Validate schema and data widths before persistence.
+
+## Naming
+
+- Use PascalCase for public APIs.
+- Use `nameof()` for member names in errors.
+- Prefer `is not null` over `!= null`.

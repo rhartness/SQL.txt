@@ -1,0 +1,44 @@
+---
+description: Contract models, interfaces, and exception hierarchy for SqlTxt.Contracts
+globs: "src/SqlTxt.Contracts/**/*.cs"
+alwaysApply: false
+---
+
+# SqlTxt.Contracts
+
+Shared models and interfaces used across the engine. No project dependencies.
+
+## Domain Models
+
+- `DatabaseDefinition` — Database metadata
+- `TableDefinition` — Table name, columns
+- `ColumnDefinition` — Name, type, width
+- `ColumnType` — CHAR, INT, etc. (Phase 1: CHAR only)
+- `RowData` — Row representation
+- `QueryResult` / `EngineResult` — Execution results
+
+## Command Contracts
+
+- `CreateDatabaseCommand`
+- `CreateTableCommand`
+- `InsertCommand`
+- `SelectCommand`
+- `UpdateCommand`
+- `DeleteCommand`
+
+## Exception Hierarchy
+
+```
+SqlTxtException (base)
+├── ParseException
+├── SchemaException
+├── ValidationException
+├── StorageException
+└── ConstraintViolationException
+```
+
+## Guidelines
+
+- Keep contracts immutable where reasonable.
+- Use records for value-like command and result types.
+- Do not add business logic; contracts are data only.

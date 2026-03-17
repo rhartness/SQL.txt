@@ -1,0 +1,35 @@
+---
+description: Test strategy, golden files, and integration test patterns for SQL.txt
+globs: "tests/**/*.cs"
+alwaysApply: false
+---
+
+# SqlTxt Testing
+
+## Unit Tests
+
+- Parser: tokenization, statement parsing, identifier validation
+- Storage: schema/metadata serialization, row format parsing
+- Core: validation rules, width validation
+
+## Integration Tests
+
+- Create database → verify directory and files
+- Create table → verify schema and metadata
+- Insert/select/update/delete → verify persisted data
+- Re-open existing db and query
+
+## Golden File Tests
+
+Use known input and expected output files for:
+
+- Schema files
+- Data files
+- Metadata files
+
+## Guidelines
+
+- Use temp directories for integration tests; clean up after.
+- Prefer deterministic, isolated tests.
+- Mock `IFileSystemAccessor` for storage unit tests.
+- Integration tests should assert exact file contents where appropriate.

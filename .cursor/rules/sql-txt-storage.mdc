@@ -1,0 +1,37 @@
+---
+description: Storage layer, file formats, and directory layout for SqlTxt.Storage
+globs: "src/SqlTxt.Storage/**/*.cs"
+alwaysApply: false
+---
+
+# SqlTxt.Storage
+
+On-disk persistence with human-readable text formats.
+
+## Directory Layout
+
+```
+/MyDatabase/
+  db.manifest.json
+  /system/
+    tables.meta.txt
+    engine.meta.json
+  /tables/
+    /Users/
+      schema.txt
+      data.txt
+      table.meta.txt
+```
+
+## File Formats
+
+- **schema.txt** — `TABLE:`, `FORMAT_VERSION:`, `COLUMNS:` with pipe-delimited column definitions
+- **table.meta.txt** — `ROW_COUNT`, `ACTIVE_ROW_COUNT`, `DELETED_ROW_COUNT`, `LAST_UPDATED_UTC`
+- **data.txt** — Fixed-width positional rows with soft-delete marker (A| or D|)
+
+## Guidelines
+
+- All formats must be human-readable and diff-friendly.
+- Use `IFileSystemAccessor` to abstract file I/O for testability.
+- Implement `ISchemaStore`, `ITableDataStore`, `IMetadataStore`.
+- Support format versioning for future evolution.

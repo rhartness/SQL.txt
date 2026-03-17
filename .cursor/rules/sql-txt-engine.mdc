@@ -1,0 +1,30 @@
+---
+description: Engine execution and command handling for SqlTxt.Engine
+globs: "src/SqlTxt.Engine/**/*.cs"
+alwaysApply: false
+---
+
+# SqlTxt.Engine
+
+Execution layer that coordinates parser, storage, and validation.
+
+## Responsibilities
+
+- Create database (directory, manifest)
+- Create table (schema, metadata)
+- Insert, select, update, delete (single-table, full scan)
+- Coordinate metadata updates
+
+## Execution Model
+
+- **Insert**: Validate schema/columns/widths → append row → update metadata
+- **Select**: Read schema → scan data file → skip deleted → apply predicate → project columns
+- **Update**: Scan → match → rewrite/append replacement → update metadata
+- **Delete**: Scan → mark deleted → update counts
+
+## Guidelines
+
+- Keep engine decoupled from file I/O via interfaces.
+- Use `IDatabaseEngine` as main entry point.
+- Delegate parsing to `ICommandParser`, storage to `ISchemaStore`/`ITableDataStore`.
+- Phase 1: full table scan only; no indexes.

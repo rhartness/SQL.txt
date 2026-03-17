@@ -1,0 +1,32 @@
+---
+description: Parser design, tokenizer, and SQL subset for SqlTxt.Parser
+globs: "src/SqlTxt.Parser/**/*.cs"
+alwaysApply: false
+---
+
+# SqlTxt.Parser
+
+SQL-like command parsing. Returns strongly typed command objects.
+
+## Phase 1 SQL Subset
+
+- `CREATE DATABASE <name>;`
+- `CREATE TABLE <name> (...);`
+- `INSERT INTO <table> (...) VALUES (...);`
+- `SELECT <columns|*> FROM <table> [WHERE <column> = <literal>];`
+- `UPDATE <table> SET <column> = <literal>[, ...] [WHERE <column> = <literal>];`
+- `DELETE FROM <table> [WHERE <column> = <literal>];`
+
+## Parsing Assumptions
+
+- Case-insensitive keywords
+- Identifiers case-preserving, normalized internally
+- String literals single-quoted
+- Equality-only predicates in Phase 1
+
+## Guidelines
+
+- Separate tokenizer and parser.
+- Return command DTOs from `ICommandParser`.
+- Report errors with line/column when possible via `ParseException`.
+- No comments required in Phase 1.

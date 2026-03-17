@@ -1,0 +1,46 @@
+---
+description: SQL.txt project purpose, layered architecture, and key interfaces
+alwaysApply: true
+---
+
+# SQL.txt Project Overview
+
+**SQL.txt** is a lightweight, embeddable .NET database engine that persists schemas, metadata, and row data in human-readable text files.
+
+## Goals
+
+1. **Learning tool** — Readable, inspectable database engine for understanding storage engines, query parsing, CRUD semantics, metadata, schema evolution, and indexing.
+2. **Practical embedded datastore** — Minimal dependency, NuGet-installable local database requiring only a package reference, writable directory, and optional CLI/consumer tooling.
+
+## Layered Architecture
+
+- **Contracts** — Shared models, interfaces, exceptions (no dependencies)
+- **Core** — Domain primitives, validation, utilities (depends on Contracts)
+- **Storage** — On-disk persistence (depends on Contracts, Core)
+- **Parser** — SQL-like command parsing (depends on Contracts, Core)
+- **Engine** — Execution layer (depends on Contracts, Core, Storage, Parser)
+- **Cli / SampleApp** — Consumer applications (depend on Engine)
+
+## Key Interfaces
+
+- `IDatabaseEngine` — Execute commands, open databases
+- `ICommandParser` — Parse text to command objects
+- `ISchemaStore` — Schema read/write
+- `ITableDataStore` — Row data read/write
+- `IMetadataStore` — Metadata persistence
+- `IFileSystemAccessor` — File I/O abstraction
+- `IRowSerializer` / `IRowDeserializer` — Row format handling
+
+## Project Responsibilities
+
+| Project | Responsibility |
+|---------|----------------|
+| SqlTxt.Contracts | Table/column definitions, command contracts, result contracts, exceptions |
+| SqlTxt.Core | Data types, validation, identifier normalization, serialization helpers |
+| SqlTxt.Storage | Directory structure, schema/metadata/row file I/O, format versioning |
+| SqlTxt.Parser | Tokenizer, parser, command AST/DTO, error reporting |
+| SqlTxt.Engine | Create db/table, insert, select, update, delete, table scans |
+
+## Reference
+
+See [docs/specs/01_Initial_Creation.md](docs/specs/01_Initial_Creation.md) for full specification.
