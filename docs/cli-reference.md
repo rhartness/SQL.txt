@@ -44,12 +44,13 @@ sqltxt exec --db ./WikiDb.wasmdb --wasm "INSERT INTO User (Id, Name) VALUES ('1'
 Executes a SELECT query and prints the result grid.
 
 ```
-sqltxt query --db <path> "<select>"
+sqltxt query --db <path> [--wasm] "<select>"
 ```
 
-**Example:**
+**Examples:**
 ```bash
 sqltxt query --db ./WikiDb "SELECT * FROM User"
+sqltxt query --db ./WikiDb.wasmdb --wasm "SELECT * FROM User"
 sqltxt query --db ./WikiDb "SELECT Id, Name FROM User WHERE Id = '1'"
 ```
 
@@ -85,6 +86,7 @@ sqltxt inspect --db ./WikiDb.wasmdb --wasm
 
 ### Create and seed the sample Wiki database
 
+**Filesystem:**
 ```bash
 sqltxt create-db ./WikiDb
 sqltxt script --db ./WikiDb docs/samples/wiki-database/create-wiki.sql
@@ -92,11 +94,26 @@ sqltxt script --db ./WikiDb docs/samples/wiki-database/seed-wiki.sql
 sqltxt query --db ./WikiDb "SELECT * FROM Page"
 ```
 
+**WASM:**
+```bash
+sqltxt create-db ./WikiDb --wasm
+sqltxt script --db ./WikiDb.wasmdb --wasm docs/samples/wiki-database/create-wiki.sql
+sqltxt script --db ./WikiDb.wasmdb --wasm docs/samples/wiki-database/seed-wiki.sql
+sqltxt query --db ./WikiDb.wasmdb --wasm "SELECT * FROM Page"
+```
+
 ### build-sample-wiki (quick setup)
 
+**Filesystem:**
 ```bash
 sqltxt build-sample-wiki --db .
 sqltxt query --db ./WikiDb "SELECT * FROM User"
+```
+
+**WASM:**
+```bash
+sqltxt build-sample-wiki --db . --wasm
+sqltxt query --db ./WikiDb.wasmdb --wasm "SELECT * FROM User"
 ```
 
 ### WASM mode (browser-compatible storage)

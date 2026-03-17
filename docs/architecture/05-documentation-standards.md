@@ -46,16 +46,29 @@ Documentation must be organized by implemented features:
 
 ## When to Update
 
-- **On feature completion** — Update Getting Started, API docs, CLI reference, and feature docs
+- **On feature completion** — Update Getting Started paths (CLI, WASM, Embedding), API docs, CLI reference, and feature docs; include examples for all implementation types where the feature applies
 - **On API change** — Update XML comments and generated docs
 - **On CLI change** — Update CLI reference and examples
+
+## Implementation Types
+
+SQL.txt supports multiple implementation paths. Reference docs must show examples for each type where relevant:
+
+| Type | Description | Example |
+|------|-------------|---------|
+| CLI (filesystem) | CLI with directory-based storage | `sqltxt exec --db ./Db "..."` |
+| CLI (WASM) | CLI with `--wasm`; single `.wasmdb` file | `sqltxt exec --db ./Db.wasmdb --wasm "..."` |
+| Embedding (C#) | Programmatic API | `await engine.ExecuteAsync(...)` |
+
+For each functionality, include examples for each applicable type. Do not document only one implementation path.
 
 ## Documentation Locations
 
 | Document Type | Location |
 |---------------|----------|
-| Getting Started | `docs/getting-started.md` |
+| Getting Started | `docs/getting-started.md` (intro); `docs/getting-started/cli.md`, `wasm.md`, `embedding.md` (per-path) |
 | API Reference | XML in source; generated output in `docs/api/` (when tooling added) |
 | CLI Reference | `docs/cli-reference.md` |
+| WASM Storage | `docs/architecture/09-wasm-storage.md` |
 | Feature Docs | `docs/features/` or inline in specifications |
 | Sample Database | `docs/samples/wiki-database.md` |

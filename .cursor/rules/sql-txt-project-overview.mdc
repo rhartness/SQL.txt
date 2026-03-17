@@ -57,11 +57,11 @@ alwaysApply: true
 | Phase | Status |
 |-------|--------|
 | Stage 0 | Done |
-| Phase 1 | In progress |
-| Phase 2 | Planned |
+| Phase 1 | Done |
+| Phase 2 | Next |
 | Phase 3 | Planned |
 
-**Current focus:** Phase 1. See [docs/plans/](docs/plans/) and [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md).
+**Current focus:** Phase 2. See [docs/plans/](docs/plans/).
 
 ## Storage Layout
 

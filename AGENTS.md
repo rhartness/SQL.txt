@@ -14,11 +14,11 @@
 | Stage/Phase | Status | Scope |
 |-------------|--------|-------|
 | **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
-| **Phase 1** | In progress | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
-| **Phase 2** | Planned | Indexes, PK/FK, constraints, relational metadata |
+| **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
+| **Phase 2** | Next | Indexes, PK/FK, constraints, relational metadata |
 | **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
 
-**Current focus:** Phase 1. Use [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md) for implementation waves. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
+**Current focus:** Phase 2. Use [docs/plans/Phase2_Implementation_Plan.md](docs/plans/Phase2_Implementation_Plan.md) when available. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
 
 ## Prompt Strategy
 
@@ -35,6 +35,16 @@
 - "Build the complete SQL.txt engine."
 - "Implement everything in Phase 1."
 
+## Documentation
+
+When adding features, update all relevant documentation. For each functionality, provide examples for **all implementation types** where the feature applies:
+
+- **CLI (filesystem)** — `sqltxt exec --db ./Db "..."`
+- **CLI (WASM)** — `sqltxt exec --db ./Db.wasmdb --wasm "..."`
+- **Embedding (C#)** — `await engine.ExecuteAsync(...)`
+
+See [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md) and [.cursor/rules/sql-txt-documentation.mdc](.cursor/rules/sql-txt-documentation.mdc).
+
 ## Key References
 
 - **Full specification:** [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md)
@@ -46,6 +56,7 @@
 - **Concurrency:** [docs/architecture/08-concurrency-and-locking.md](docs/architecture/08-concurrency-and-locking.md) — locking, NOLOCK
 - **Design decisions (ADR-003):** [docs/decisions/adr-003-phase1-design-decisions.md](docs/decisions/adr-003-phase1-design-decisions.md)
 - **Documentation standards:** [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
+- **WASM storage:** [docs/architecture/09-wasm-storage.md](docs/architecture/09-wasm-storage.md)
 - **Sample Wiki database:** [docs/samples/wiki-database.md](docs/samples/wiki-database.md)
 - **Plans:** [docs/plans/](docs/plans/)
 

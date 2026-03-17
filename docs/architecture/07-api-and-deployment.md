@@ -4,6 +4,8 @@
 
 SQL.txt supports three build types: CLI executable, installable Service, and NuGet API DLL. All consume the same Engine. The API is async and supports concurrent access via a lock coordinator.
 
+**WASM storage:** The CLI supports `--wasm` mode for browser-compatible storage (single `.wasmdb` file). See [09-wasm-storage.md](09-wasm-storage.md) for design and future browser deployment.
+
 ## Build Types
 
 ### 1. CLI Executable

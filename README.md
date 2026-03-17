@@ -15,6 +15,7 @@ A lightweight, embeddable .NET database engine that persists schemas, metadata, 
 
 - **Human-readable on-disk storage** — Inspect and debug data with any text editor
 - **Lightweight local embedded usage** — No server, no external dependencies
+- **WASM-compatible storage** — `--wasm` mode for browser-style storage; single `.wasmdb` file persistence
 - **Cross-platform** — Windows, macOS, Linux
 - **Three build types** — CLI executable, NuGet API DLL, installable Service (Phase 2)
 - **Async API** — All DB functions via async methods; supports concurrent API calls
@@ -47,8 +48,8 @@ docs/
 | Phase | Status | Scope |
 |-------|--------|-------|
 | **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
-| **Phase 1** | Next | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
-| **Phase 2** | Planned | Indexes, PK/FK, constraints, relational metadata |
+| **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
+| **Phase 2** | Next | Indexes, PK/FK, constraints, relational metadata |
 | **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
 
 ## Build & Test
@@ -63,13 +64,18 @@ dotnet test
 | Build | Description |
 |-------|-------------|
 | **CLI** | Standalone executable; `sqltxt create-db`, `sqltxt exec`, etc. |
+| **CLI (WASM)** | Same CLI with `--wasm`; stores in `.wasmdb` file; future Blazor/browser target |
 | **NuGet** | SqlTxt package; embed in APIs, websites |
 | **Service** | Installable service (Phase 2) |
 
 ## Documentation
 
-- [Getting Started](docs/getting-started.md) — Prerequisites, build, minimal example
+- [Getting Started](docs/getting-started.md) — Prerequisites, installation, choose your path
+- [Getting Started (CLI)](docs/getting-started/cli.md) — CLI with filesystem storage
+- [Getting Started (WASM)](docs/getting-started/wasm.md) — CLI with `--wasm` for browser-style storage
+- [Getting Started (Embedding)](docs/getting-started/embedding.md) — Embed in C# applications
 - [CLI Reference](docs/cli-reference.md) — Command-line usage
+- [WASM Storage](docs/architecture/09-wasm-storage.md) — Browser-compatible storage design
 - [Initial Creation Spec](docs/specifications/01_Initial_Creation.md) — Full specification
 - [Architecture](docs/architecture/) — System design and storage format
 - [Sample Wiki Database](docs/samples/wiki-database.md) — Example schema and scripts

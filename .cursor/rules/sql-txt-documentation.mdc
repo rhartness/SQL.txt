@@ -8,9 +8,19 @@ alwaysApply: false
 
 ## When to Update
 
-- **On feature completion** — Update Getting Started, API docs, CLI reference, feature docs
+- **On feature completion** — Update Getting Started paths (CLI, WASM, Embedding), API docs, CLI reference, feature docs; include examples for all implementation types where the feature applies
 - **On API change** — Update XML comments and generated docs
 - **On CLI change** — Update docs/cli-reference.md and examples
+
+## Multi-Implementation Examples
+
+When adding or documenting a feature, update reference docs to show **all applicable implementation types**:
+
+- **CLI (filesystem)** — `sqltxt exec --db ./Db "..."`
+- **CLI (WASM)** — `sqltxt exec --db ./Db.wasmdb --wasm "..."`
+- **Embedding (C#)** — `await engine.ExecuteAsync(...)`
+
+For each functionality, include examples for each type where the feature applies. Do not document only one implementation path.
 
 ## Required Content
 
@@ -21,7 +31,9 @@ alwaysApply: false
 
 ## Locations
 
-- docs/getting-started.md
+- docs/getting-started.md (intro)
+- docs/getting-started/cli.md, wasm.md, embedding.md (per-path)
 - docs/cli-reference.md
 - docs/architecture/05-documentation-standards.md
+- docs/architecture/09-wasm-storage.md
 - docs/samples/wiki-database.md

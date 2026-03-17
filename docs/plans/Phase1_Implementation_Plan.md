@@ -217,12 +217,14 @@ Improve robustness and error handling.
 
 ## Phase 1 Complete Checklist
 
-- [ ] All waves 1–10 complete (including Wave 6.5 NuGet packaging)
-- [ ] `dotnet build` succeeds
-- [ ] `dotnet test` passes
-- [ ] CLI can create db, run create-wiki.sql, run seed-wiki.sql
-- [ ] SampleApp runs successfully
-- [ ] README and docs updated
+- [x] All waves 1–10 complete (including Wave 6.5 NuGet packaging)
+- [x] `dotnet build` succeeds
+- [x] `dotnet test` passes
+- [x] CLI can create db, run create-wiki.sql, run seed-wiki.sql
+- [x] SampleApp runs successfully
+- [x] README and docs updated
+
+**Phase 1 is complete.** (Wave 8.5 golden file tests are optional and deferred.)
 
 ---
 

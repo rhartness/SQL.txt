@@ -86,11 +86,17 @@ CREATE TABLE PageImage (
 
 ### Option A: Build Sample Wiki (recommended)
 
+**Filesystem storage:**
 ```bash
 sqltxt build-sample-wiki --db .
 ```
 
-Creates `./WikiDb` with schema and seed data. Use `--db <path>` to specify the parent directory. Verbose output shows each step. The database is deleted and rebuilt if it already exists.
+**WASM storage (single `.wasmdb` file):**
+```bash
+sqltxt build-sample-wiki --db . --wasm
+```
+
+Creates `./WikiDb` (or `./WikiDb.wasmdb` with `--wasm`) with schema and seed data. Use `--db <path>` to specify the parent directory. Verbose output shows each step. The database is deleted and rebuilt if it already exists.
 
 **API / NuGet:**
 ```csharp
@@ -101,17 +107,32 @@ await SqlTxtApi.BuildSampleWikiAsync(path, new BuildSampleWikiOptions(Verbose: f
 
 ### Option B: Manual steps
 
+**Filesystem storage:**
 ```bash
 sqltxt create-db ./WikiDb
 sqltxt script --db ./WikiDb docs/samples/wiki-database/create-wiki.sql
 sqltxt script --db ./WikiDb docs/samples/wiki-database/seed-wiki.sql
 ```
 
+**WASM storage:**
+```bash
+sqltxt create-db ./WikiDb --wasm
+sqltxt script --db ./WikiDb.wasmdb --wasm docs/samples/wiki-database/create-wiki.sql
+sqltxt script --db ./WikiDb.wasmdb --wasm docs/samples/wiki-database/seed-wiki.sql
+```
+
 ### Verify
 
+**Filesystem:**
 ```bash
 sqltxt query --db ./WikiDb "SELECT * FROM Page"
 sqltxt query --db ./WikiDb "SELECT Id, PageId, Content FROM PageContent"
+```
+
+**WASM:**
+```bash
+sqltxt query --db ./WikiDb.wasmdb --wasm "SELECT * FROM Page"
+sqltxt query --db ./WikiDb.wasmdb --wasm "SELECT Id, PageId, Content FROM PageContent"
 ```
 
 The seed data demonstrates CHAR field encoding: `\n` (newline) and `\t` (tab) in string literals are stored and decoded correctly. For example, PageContent row 1 has `Welcome to the sample Wiki.\n\nThis is the home page.` which displays with actual line breaks when queried.
