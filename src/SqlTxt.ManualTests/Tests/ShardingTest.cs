@@ -53,14 +53,13 @@ public static class ShardingTest
                 "INSERT INTO User (Id, Username, Email, CreatedAt) VALUES ('1', 'admin', 'admin@wiki.local', '2026-03-17T12:00:00Z')",
                 wikiDbPath, cancellationToken).ConfigureAwait(false);
 
-            logger?.Log($"Inserting {rowCount} Page rows...");
+            logger?.Log($"Inserting {rowCount} Page rows (batch INSERT)...");
             var insertSw = Stopwatch.StartNew();
-            for (var i = 0; i < rowCount; i++)
-            {
-                await engine.ExecuteAsync(
-                    $"INSERT INTO Page (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES ('{i}', 'Page {i}', 'page-{i}', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')",
-                    wikiDbPath, cancellationToken).ConfigureAwait(false);
-            }
+            var values = string.Join(", ", Enumerable.Range(0, rowCount).Select(i =>
+                $"('{i}', 'Page {i}', 'page-{i}', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')"));
+            await engine.ExecuteAsync(
+                "INSERT INTO Page (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES " + values,
+                wikiDbPath, cancellationToken).ConfigureAwait(false);
             insertSw.Stop();
             details["InsertDurationMs"] = insertSw.ElapsedMilliseconds;
 

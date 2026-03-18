@@ -4,9 +4,13 @@ namespace SqlTxt.Storage;
 
 /// <summary>
 /// Default implementation of IFileSystemAccessor using the real file system.
+/// Uses retry-with-backoff for transient I/O errors (e.g., "Access to the path is denied" on Windows).
 /// </summary>
 public sealed class FileSystemAccessor : Contracts.IFileSystemAccessor
 {
+    private const int MaxRetries = 3;
+    private static readonly int[] RetryDelaysMs = [10, 50, 200];
+
     public void CreateDirectory(string path) => Directory.CreateDirectory(path);
 
     public bool DirectoryExists(string path) => Directory.Exists(path);
@@ -16,11 +20,45 @@ public sealed class FileSystemAccessor : Contracts.IFileSystemAccessor
     public async Task<string> ReadAllTextAsync(string path, CancellationToken cancellationToken = default) =>
         await File.ReadAllTextAsync(path, cancellationToken).ConfigureAwait(false);
 
-    public async Task WriteAllTextAsync(string path, string content, CancellationToken cancellationToken = default) =>
-        await File.WriteAllTextAsync(path, content, cancellationToken).ConfigureAwait(false);
+    public async Task WriteAllTextAsync(string path, string content, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                await File.WriteAllTextAsync(path, content, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (IOException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
 
-    public async Task AppendAllTextAsync(string path, string content, CancellationToken cancellationToken = default) =>
-        await File.AppendAllTextAsync(path, content, cancellationToken).ConfigureAwait(false);
+    public async Task AppendAllTextAsync(string path, string content, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                await File.AppendAllTextAsync(path, content, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (IOException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
 
     public async Task<IReadOnlyList<string>> ReadAllLinesAsync(string path, CancellationToken cancellationToken = default)
     {
@@ -42,8 +80,25 @@ public sealed class FileSystemAccessor : Contracts.IFileSystemAccessor
         }
     }
 
-    public void MoveFile(string sourcePath, string destinationPath) =>
-        File.Move(sourcePath, destinationPath, overwrite: true);
+    public void MoveFile(string sourcePath, string destinationPath)
+    {
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                File.Move(sourcePath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (IOException) when (attempt < MaxRetries - 1)
+            {
+                Thread.Sleep(RetryDelaysMs[attempt]);
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries - 1)
+            {
+                Thread.Sleep(RetryDelaysMs[attempt]);
+            }
+        }
+    }
 
     public void DeleteFile(string path)
     {

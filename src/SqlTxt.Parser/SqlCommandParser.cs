@@ -297,33 +297,43 @@ public sealed class SqlCommandParser : ICommandParser
         }
         Expect(TokenType.RightParen);
         ExpectKeyword("VALUES");
-        Expect(TokenType.LeftParen);
+        var valueRows = new List<IReadOnlyList<string>>();
 
-        var values = new List<string>();
         while (true)
         {
-            var p = Peek();
-            if (p.Type == TokenType.StringLiteral)
+            Expect(TokenType.LeftParen);
+            var values = new List<string>();
+            while (true)
             {
-                Advance();
-                values.Add(p.Value);
-            }
-            else if (p.Type == TokenType.NumberLiteral)
-            {
-                Advance();
-                values.Add(p.Value);
-            }
-            else
-                throw ParseError("Expected literal value", p.Line, p.Column);
+                var p = Peek();
+                if (p.Type == TokenType.StringLiteral)
+                {
+                    Advance();
+                    values.Add(p.Value);
+                }
+                else if (p.Type == TokenType.NumberLiteral)
+                {
+                    Advance();
+                    values.Add(p.Value);
+                }
+                else
+                    throw ParseError("Expected literal value", p.Line, p.Column);
 
-            if (Peek().Type == TokenType.RightParen)
+                if (Peek().Type == TokenType.RightParen)
+                    break;
+                Expect(TokenType.Comma);
+            }
+            Expect(TokenType.RightParen);
+            valueRows.Add(values);
+
+            var next = Peek();
+            if (next.Type != TokenType.Comma)
                 break;
-            Expect(TokenType.Comma);
+            Advance();
         }
-        Expect(TokenType.RightParen);
         OptionalSemicolon();
 
-        return new InsertCommand(tableName, columns, values);
+        return new InsertCommand(tableName, columns, valueRows);
     }
 
     private SelectCommand ParseSelect()

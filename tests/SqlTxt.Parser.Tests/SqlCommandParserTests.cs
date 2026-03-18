@@ -39,8 +39,26 @@ public class SqlCommandParserTests
         var c = (InsertCommand)cmd;
         Assert.Equal("Users", c.TableName);
         Assert.Equal(2, c.ColumnNames.Count);
-        Assert.Equal("1", c.Values[0]);
-        Assert.Equal("Alice", c.Values[1]);
+        Assert.Single(c.ValueRows);
+        Assert.Equal("1", c.ValueRows[0][0]);
+        Assert.Equal("Alice", c.ValueRows[0][1]);
+    }
+
+    [Fact]
+    public void Parse_InsertMultiRow_ReturnsCommand()
+    {
+        var cmd = _parser.Parse("INSERT INTO Users (Id, Name) VALUES ('1', 'Alice'), ('2', 'Bob'), ('3', 'Carol')");
+        Assert.IsType<InsertCommand>(cmd);
+        var c = (InsertCommand)cmd;
+        Assert.Equal("Users", c.TableName);
+        Assert.Equal(2, c.ColumnNames.Count);
+        Assert.Equal(3, c.ValueRows.Count);
+        Assert.Equal("1", c.ValueRows[0][0]);
+        Assert.Equal("Alice", c.ValueRows[0][1]);
+        Assert.Equal("2", c.ValueRows[1][0]);
+        Assert.Equal("Bob", c.ValueRows[1][1]);
+        Assert.Equal("3", c.ValueRows[2][0]);
+        Assert.Equal("Carol", c.ValueRows[2][1]);
     }
 
     [Fact]

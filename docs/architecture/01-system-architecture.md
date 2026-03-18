@@ -27,13 +27,24 @@ SqlTxt.Cli    SqlTxt.SampleApp  SqlTxt.Service  NuGet (SqlTxt)
 
 ## Layers
 
-### Parser Layer (SqlTxt.Parser)
+SQL.txt follows a four-layer model that supports future distributed scaling:
+
+| Layer | Components | Responsibility |
+|-------|------------|-----------------|
+| **Query Layer** | Parser, command DTOs | Parse SQL text into command objects |
+| **Execution Layer** | DatabaseEngine | Validate, coordinate storage, apply locks |
+| **Storage Layer** | TableDataStore, IndexStore, SchemaStore, MetadataStore | Row/index/schema I/O |
+| **File Engine** | IFileSystemAccessor | File I/O abstraction |
+
+Future extensions (e.g., Cluster Router, Node Manager, distributed query) can sit above the Execution Layer and route to nodes without changing lower layers.
+
+### Query Layer (SqlTxt.Parser)
 
 - Tokenizes SQL-like text
 - Produces command AST/DTO objects
 - Reports parse errors with line/column when possible
 
-### Engine Layer (SqlTxt.Engine)
+### Execution Layer (SqlTxt.Engine)
 
 - Receives command objects
 - Validates against schema and rules
@@ -46,7 +57,7 @@ SqlTxt.Cli    SqlTxt.SampleApp  SqlTxt.Service  NuGet (SqlTxt)
 - Reads/writes schema, metadata, and row files
 - Abstracts format versioning
 
-### File System Layer
+### File Engine (IFileSystemAccessor)
 
 - Abstracted via `IFileSystemAccessor`
 - Enables testing without real disk I/O

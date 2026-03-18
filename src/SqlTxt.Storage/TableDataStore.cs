@@ -246,37 +246,57 @@ public sealed class TableDataStore : ITableDataStore
         if (!_fs.DirectoryExists(basePath))
             yield break;
 
+        var shardPaths = new List<string>();
         var shardIndex = 0;
         while (true)
         {
             var dataPath = GetDataFilePath(databasePath, tableName, shardIndex);
             if (!_fs.FileExists(dataPath))
                 break;
-
-            var rowNum = 0;
-            await foreach (var line in _fs.ReadLinesAsync(dataPath, cancellationToken).ConfigureAwait(false))
-            {
-                rowNum++;
-                if (string.IsNullOrWhiteSpace(line))
-                    continue;
-
-                RowData row;
-                bool isActive;
-                try
-                {
-                    row = _deserializer.Deserialize(line, table, out isActive);
-                }
-                catch (StorageException ex)
-                {
-                    throw new StorageException(ex.Message, dataPath, rowNum, null);
-                }
-
-                if (isActive)
-                    yield return row;
-            }
-
+            shardPaths.Add(dataPath);
             shardIndex++;
         }
+
+        if (shardPaths.Count == 0)
+            yield break;
+
+        var shardTasks = shardPaths.Select(path => ReadShardRowsAsync(path, table, cancellationToken)).ToList();
+        var shardResults = await Task.WhenAll(shardTasks).ConfigureAwait(false);
+
+        foreach (var rows in shardResults)
+        {
+            foreach (var row in rows)
+            {
+                yield return row;
+            }
+        }
+    }
+
+    private async Task<List<RowData>> ReadShardRowsAsync(string dataPath, TableDefinition table, CancellationToken cancellationToken)
+    {
+        var result = new List<RowData>();
+        var rowNum = 0;
+        await foreach (var line in _fs.ReadLinesAsync(dataPath, cancellationToken).ConfigureAwait(false))
+        {
+            rowNum++;
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
+            RowData row;
+            bool isActive;
+            try
+            {
+                row = _deserializer.Deserialize(line, table, out isActive);
+            }
+            catch (StorageException ex)
+            {
+                throw new StorageException(ex.Message, dataPath, rowNum, null);
+            }
+
+            if (isActive)
+                result.Add(row);
+        }
+        return result;
     }
 
     public async Task<IReadOnlyList<(bool IsActive, RowData Row)>> ReadAllRowsWithStatusAsync(string databasePath, string tableName, CancellationToken cancellationToken = default)

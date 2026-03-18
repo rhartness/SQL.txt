@@ -15,7 +15,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
     private readonly IDatabaseLockManager _lockManager;
     private readonly Contracts.IFileSystemAccessor _fs;
     private readonly DatabaseCreator _dbCreator;
-    private readonly SchemaStore _schemaStore;
+    private readonly ISchemaStore _schemaStore;
     private readonly TableDataStore _tableDataStore;
     private readonly MetadataStore _metadataStore;
     private readonly IIndexStore _indexStore;
@@ -36,7 +36,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
 
         var serializer = new FixedWidthRowSerializer();
         var deserializer = new FixedWidthRowDeserializer();
-        _schemaStore = new SchemaStore(_fs);
+        var schemaStore = new SchemaStore(_fs);
+        _schemaStore = new CachingSchemaStore(schemaStore);
         _metadataStore = new MetadataStore(_fs);
         _tableDataStore = new TableDataStore(_fs, serializer, deserializer, _schemaStore, _rowIdStore, stocStore: null, indexStore: _indexStore);
         _dbCreator = new DatabaseCreator(_fs);
@@ -385,85 +386,98 @@ public sealed class DatabaseEngine : IDatabaseEngine
         var table = await _schemaStore.ReadSchemaAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{cmd.TableName}' not found");
 
-        var rowDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < cmd.ColumnNames.Count; i++)
-        {
-            var colName = cmd.ColumnNames[i];
-            var value = i < cmd.Values.Count ? cmd.Values[i] : string.Empty;
-            var col = table.Columns.FirstOrDefault(c => c.Name.Equals(colName, StringComparison.OrdinalIgnoreCase))
-                ?? throw new SchemaException($"Column '{colName}' not found in table '{cmd.TableName}'");
+        var allWarnings = new List<string>();
+        var insertedCount = 0;
 
-            rowDict[colName] = value;
+        foreach (var values in cmd.ValueRows)
+        {
+            var rowDict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < cmd.ColumnNames.Count; i++)
+            {
+                var colName = cmd.ColumnNames[i];
+                var value = i < values.Count ? values[i] : string.Empty;
+                var col = table.Columns.FirstOrDefault(c => c.Name.Equals(colName, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new SchemaException($"Column '{colName}' not found in table '{cmd.TableName}'");
+
+                rowDict[colName] = value;
+            }
+
+            var row = new RowData(rowDict);
+
+            if (table.PrimaryKey.Count > 0)
+            {
+                var pkValues = table.PrimaryKey.Select(c => rowDict.TryGetValue(c, out var v) ? v : "").ToList();
+                var pkKey = IndexStore.FormatCompositeKey(pkValues);
+                var exists = await _indexStore.ContainsKeyAsync(databasePath, cmd.TableName, "_PK", pkKey, cancellationToken).ConfigureAwait(false);
+                if (exists)
+                    throw new ConstraintViolationException($"Duplicate primary key value in table '{cmd.TableName}'.");
+            }
+
+            foreach (var fk in table.ForeignKeys)
+            {
+                var fkValue = rowDict.TryGetValue(fk.ColumnName, out var fkv) ? fkv : "";
+                var parentExists = await _indexStore.ContainsKeyAsync(databasePath, fk.ReferencedTable, "_PK", fkValue, cancellationToken).ConfigureAwait(false);
+                if (!parentExists)
+                    throw new ConstraintViolationException($"Foreign key violation: '{fk.ReferencedTable}.{fk.ReferencedColumn}' has no row with value '{fkValue}'.");
+            }
+
+            if (table.UniqueColumns.Count > 0)
+            {
+                var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => rowDict.TryGetValue(c, out var v) ? v : "").ToList());
+                var uqExists = await _indexStore.ContainsKeyAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, cancellationToken).ConfigureAwait(false);
+                if (uqExists)
+                    throw new ConstraintViolationException($"Duplicate unique value in table '{cmd.TableName}'.");
+            }
+
+            long rowId = 0;
+            if (table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0)
+            {
+                rowId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
+                rowDict[TableDefinition.RowIdColumnName] = rowId.ToString();
+                row = new RowData(rowDict);
+            }
+
+            var warnings = new List<string>();
+            var (shardIndex, appendedRowId) = await _tableDataStore.AppendRowAsync(databasePath, cmd.TableName, row, cancellationToken, warnings).ConfigureAwait(false);
+            rowId = appendedRowId;
+            if (warnings.Count > 0)
+                allWarnings.AddRange(warnings);
+
+            if (table.PrimaryKey.Count > 0)
+            {
+                var pkKey = IndexStore.FormatCompositeKey(table.PrimaryKey.Select(c => row.GetValue(c) ?? "").ToList());
+                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_PK", pkKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var fk in table.ForeignKeys)
+            {
+                var fkValue = row.GetValue(fk.ColumnName) ?? "";
+                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, $"_FK_{fk.ReferencedTable}", fkValue, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (table.UniqueColumns.Count > 0)
+            {
+                var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => row.GetValue(c) ?? "").ToList());
+                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+            }
+
+            foreach (var idx in table.Indexes)
+            {
+                var idxFileName = GetIndexFileNameForDefinition(table, idx);
+                var key = IndexStore.FormatCompositeKeyFromRow(row, idx.ColumnNames);
+                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, idxFileName, key, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+            }
+
+            insertedCount++;
         }
 
-        var row = new RowData(rowDict);
-
-        if (table.PrimaryKey.Count > 0)
+        if (insertedCount > 0)
         {
-            var pkValues = table.PrimaryKey.Select(c => rowDict.TryGetValue(c, out var v) ? v : "").ToList();
-            var pkKey = IndexStore.FormatCompositeKey(pkValues);
-            var exists = await _indexStore.ContainsKeyAsync(databasePath, cmd.TableName, "_PK", pkKey, cancellationToken).ConfigureAwait(false);
-            if (exists)
-                throw new ConstraintViolationException($"Duplicate primary key value in table '{cmd.TableName}'.");
+            var (total, active, deleted) = await _metadataStore.ReadMetadataAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
+            await _metadataStore.UpdateMetadataAsync(databasePath, cmd.TableName, total + insertedCount, active + insertedCount, deleted, cancellationToken).ConfigureAwait(false);
         }
 
-        foreach (var fk in table.ForeignKeys)
-        {
-            var fkValue = rowDict.TryGetValue(fk.ColumnName, out var fkv) ? fkv : "";
-            var parentExists = await _indexStore.ContainsKeyAsync(databasePath, fk.ReferencedTable, "_PK", fkValue, cancellationToken).ConfigureAwait(false);
-            if (!parentExists)
-                throw new ConstraintViolationException($"Foreign key violation: '{fk.ReferencedTable}.{fk.ReferencedColumn}' has no row with value '{fkValue}'.");
-        }
-
-        if (table.UniqueColumns.Count > 0)
-        {
-            var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => rowDict.TryGetValue(c, out var v) ? v : "").ToList());
-            var uqExists = await _indexStore.ContainsKeyAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, cancellationToken).ConfigureAwait(false);
-            if (uqExists)
-                throw new ConstraintViolationException($"Duplicate unique value in table '{cmd.TableName}'.");
-        }
-
-        long rowId = 0;
-        if (table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0)
-        {
-            rowId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
-            rowDict[TableDefinition.RowIdColumnName] = rowId.ToString();
-            row = new RowData(rowDict);
-        }
-
-        var warnings = new List<string>();
-        var (shardIndex, appendedRowId) = await _tableDataStore.AppendRowAsync(databasePath, cmd.TableName, row, cancellationToken, warnings).ConfigureAwait(false);
-        rowId = appendedRowId;
-
-        if (table.PrimaryKey.Count > 0)
-        {
-            var pkKey = IndexStore.FormatCompositeKey(table.PrimaryKey.Select(c => row.GetValue(c) ?? "").ToList());
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_PK", pkKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
-        }
-
-        foreach (var fk in table.ForeignKeys)
-        {
-            var fkValue = row.GetValue(fk.ColumnName) ?? "";
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, $"_FK_{fk.ReferencedTable}", fkValue, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
-        }
-
-        if (table.UniqueColumns.Count > 0)
-        {
-            var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => row.GetValue(c) ?? "").ToList());
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
-        }
-
-        foreach (var idx in table.Indexes)
-        {
-            var idxFileName = GetIndexFileNameForDefinition(table, idx);
-            var key = IndexStore.FormatCompositeKeyFromRow(row, idx.ColumnNames);
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, idxFileName, key, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
-        }
-
-        var (total, active, deleted) = await _metadataStore.ReadMetadataAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
-        await _metadataStore.UpdateMetadataAsync(databasePath, cmd.TableName, total + 1, active + 1, deleted, cancellationToken).ConfigureAwait(false);
-
-        return new EngineResult(1, Warnings: warnings);
+        return new EngineResult(insertedCount, Warnings: allWarnings.Count > 0 ? allWarnings : null);
     }
 
     private async Task<EngineResult> ExecuteSelectAsync(string databasePath, SelectCommand cmd, CancellationToken cancellationToken)
