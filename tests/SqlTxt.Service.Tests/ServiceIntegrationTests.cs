@@ -75,5 +75,31 @@ public class ServiceIntegrationTests : IClassFixture<WebApplicationFactory<Progr
         }
     }
 
+    [Fact]
+    public async Task Rebalance_ReturnsRowCounts()
+    {
+        var dbName = "SqlTxtSvc_" + Guid.NewGuid().ToString("N")[..8];
+        var dbPath = Path.Combine(Path.GetTempPath(), dbName);
+
+        try
+        {
+            await _client.PostAsJsonAsync("/exec", new { Sql = $"CREATE DATABASE {dbName}", DatabasePath = Path.GetTempPath() });
+            await _client.PostAsJsonAsync("/exec", new { Sql = "CREATE TABLE T (Id CHAR(5) PRIMARY KEY, Name CHAR(10))", DatabasePath = dbPath });
+            await _client.PostAsJsonAsync("/exec", new { Sql = "INSERT INTO T (Id, Name) VALUES ('1', 'Alice')", DatabasePath = dbPath });
+
+            var rebalanceResp = await _client.PostAsJsonAsync("/rebalance", new { TableName = "T", DatabasePath = dbPath });
+            rebalanceResp.EnsureSuccessStatusCode();
+            var result = await rebalanceResp.Content.ReadFromJsonAsync<RebalanceResponse>();
+            Assert.NotNull(result);
+            Assert.Equal(1, result!.RowsProcessed);
+        }
+        finally
+        {
+            if (Directory.Exists(dbPath))
+                Directory.Delete(dbPath, recursive: true);
+        }
+    }
+
     private record ExecResponse(int RowsAffected, IReadOnlyList<string>? Warnings);
+    private record RebalanceResponse(int RowsProcessed);
 }

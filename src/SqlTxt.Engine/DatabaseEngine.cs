@@ -38,7 +38,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         var deserializer = new FixedWidthRowDeserializer();
         _schemaStore = new SchemaStore(_fs);
         _metadataStore = new MetadataStore(_fs);
-        _tableDataStore = new TableDataStore(_fs, serializer, deserializer, _schemaStore, _rowIdStore);
+        _tableDataStore = new TableDataStore(_fs, serializer, deserializer, _schemaStore, _rowIdStore, stocStore: null, indexStore: _indexStore);
         _dbCreator = new DatabaseCreator(_fs);
     }
 
@@ -429,31 +429,32 @@ public sealed class DatabaseEngine : IDatabaseEngine
         }
 
         var warnings = new List<string>();
-        await _tableDataStore.AppendRowAsync(databasePath, cmd.TableName, row, cancellationToken, warnings).ConfigureAwait(false);
+        var (shardIndex, appendedRowId) = await _tableDataStore.AppendRowAsync(databasePath, cmd.TableName, row, cancellationToken, warnings).ConfigureAwait(false);
+        rowId = appendedRowId;
 
         if (table.PrimaryKey.Count > 0)
         {
             var pkKey = IndexStore.FormatCompositeKey(table.PrimaryKey.Select(c => row.GetValue(c) ?? "").ToList());
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_PK", pkKey, rowId, cancellationToken).ConfigureAwait(false);
+            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_PK", pkKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var fk in table.ForeignKeys)
         {
             var fkValue = row.GetValue(fk.ColumnName) ?? "";
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, $"_FK_{fk.ReferencedTable}", fkValue, rowId, cancellationToken).ConfigureAwait(false);
+            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, $"_FK_{fk.ReferencedTable}", fkValue, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
         }
 
         if (table.UniqueColumns.Count > 0)
         {
             var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => row.GetValue(c) ?? "").ToList());
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, rowId, cancellationToken).ConfigureAwait(false);
+            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var idx in table.Indexes)
         {
             var idxFileName = GetIndexFileNameForDefinition(table, idx);
             var key = IndexStore.FormatCompositeKeyFromRow(row, idx.ColumnNames);
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, idxFileName, key, rowId, cancellationToken).ConfigureAwait(false);
+            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, idxFileName, key, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
         }
 
         var (total, active, deleted) = await _metadataStore.ReadMetadataAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
@@ -665,7 +666,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 await _indexStore.RemoveIndexEntryAsync(databasePath, cmd.TableName, "_PK", oldKey, cancellationToken).ConfigureAwait(false);
 
             foreach (var (_, newKey, rowId) in pkUpdates)
-                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_PK", newKey, rowId, cancellationToken).ConfigureAwait(false);
+                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_PK", newKey, rowId, shardId: 0, cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var (oldVal, newVal, rowId, fkIndexName) in fkUpdates)
@@ -678,7 +679,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         foreach (var (oldVal, newVal, rowId, fkIndexName) in fkUpdates)
         {
             await _indexStore.RemoveIndexEntryByValueAndRowIdAsync(databasePath, cmd.TableName, fkIndexName, oldVal, rowId, cancellationToken).ConfigureAwait(false);
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, fkIndexName, newVal, rowId, cancellationToken).ConfigureAwait(false);
+            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, fkIndexName, newVal, rowId, shardId: 0, cancellationToken).ConfigureAwait(false);
         }
 
         var uqIndexName = "_UQ_" + string.Join("_", table.UniqueColumns);
@@ -697,14 +698,14 @@ public sealed class DatabaseEngine : IDatabaseEngine
             foreach (var (oldKey, newKey, rowId) in uqUpdates)
             {
                 await _indexStore.RemoveIndexEntryByValueAndRowIdAsync(databasePath, cmd.TableName, uqIndexName, oldKey, rowId, cancellationToken).ConfigureAwait(false);
-                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, uqIndexName, newKey, rowId, cancellationToken).ConfigureAwait(false);
+                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, uqIndexName, newKey, rowId, shardId: 0, cancellationToken).ConfigureAwait(false);
             }
         }
 
         foreach (var (oldKey, newKey, rowId, idxFileName) in indexUpdates)
         {
             await _indexStore.RemoveIndexEntryByValueAndRowIdAsync(databasePath, cmd.TableName, idxFileName, oldKey, rowId, cancellationToken).ConfigureAwait(false);
-            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, idxFileName, newKey, rowId, cancellationToken).ConfigureAwait(false);
+            await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, idxFileName, newKey, rowId, shardId: 0, cancellationToken).ConfigureAwait(false);
         }
 
         await _metadataStore.UpdateMetadataAsync(databasePath, cmd.TableName, total, active, delCount, cancellationToken).ConfigureAwait(false);

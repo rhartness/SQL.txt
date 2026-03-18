@@ -1,7 +1,8 @@
 namespace SqlTxt.Contracts;
 
 /// <summary>
-/// Manages index files (PK, FK, secondary indexes) with Value|_RowId format.
+/// Manages index files (PK, FK, secondary indexes) with Value|ShardId|_RowId format.
+/// Backward compatible with legacy Value|_RowId (treated as ShardId=0).
 /// </summary>
 public interface IIndexStore
 {
@@ -15,15 +16,16 @@ public interface IIndexStore
     Task CreateIndexAsync(string databasePath, string tableName, string indexFileName, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Appends an index entry: Value|_RowId.
+    /// Appends an index entry: Value|ShardId|_RowId.
     /// </summary>
     /// <param name="databasePath">Database root path.</param>
     /// <param name="tableName">Table name.</param>
     /// <param name="indexFileName">Index file name.</param>
     /// <param name="keyValue">Composite key value (use \x1E to separate multi-column keys).</param>
     /// <param name="rowId">_RowId of the row.</param>
+    /// <param name="shardId">Shard index where row resides (0 for root file).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    Task AddIndexEntryAsync(string databasePath, string tableName, string indexFileName, string keyValue, long rowId, CancellationToken cancellationToken = default);
+    Task AddIndexEntryAsync(string databasePath, string tableName, string indexFileName, string keyValue, long rowId, int shardId = 0, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Removes an index entry by key value.

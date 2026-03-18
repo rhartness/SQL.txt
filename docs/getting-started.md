@@ -2,6 +2,18 @@
 
 A lightweight, embeddable .NET database engine that persists schemas, metadata, and row data in **human-readable text files**.
 
+## Phase 2 Features (Current)
+
+- **Primary keys** — `PRIMARY KEY` on columns; duplicate rejection
+- **Foreign keys** — `FOREIGN KEY (col) REFERENCES Table(col)`; referential integrity
+- **UNIQUE constraints** — Column-level uniqueness
+- **CREATE INDEX** — Secondary indexes for faster lookups
+- **WITH (NOLOCK)** — Read without acquiring read lock (dirty reads)
+- **Sharding** — Automatic shard creation and split when `MaxShardSize` exceeded
+- **STOC** — Shard Table of Contents for multi-shard tables
+- **Reader-writer locks** — Multiple concurrent readers; single writer
+- **Rebalance** — Compact and rebalance shards via CLI or Service API
+
 ## Prerequisites
 
 - .NET 8 SDK

@@ -14,44 +14,165 @@ public sealed class TableDataStore : ITableDataStore
     private readonly IRowDeserializer _deserializer;
     private readonly ISchemaStore _schemaStore;
     private readonly IRowIdSequenceStore _rowIdStore;
+    private readonly IStocStore _stocStore;
+    private readonly IIndexStore? _indexStore;
 
     public TableDataStore(
         Contracts.IFileSystemAccessor fs,
         IRowSerializer serializer,
         IRowDeserializer deserializer,
         ISchemaStore schemaStore,
-        IRowIdSequenceStore? rowIdStore = null)
+        IRowIdSequenceStore? rowIdStore = null,
+        IStocStore? stocStore = null,
+        IIndexStore? indexStore = null)
     {
         _fs = fs;
         _serializer = serializer;
         _deserializer = deserializer;
         _schemaStore = schemaStore;
         _rowIdStore = rowIdStore ?? new RowIdSequenceStore(fs);
+        _stocStore = stocStore ?? new StocStore(fs);
+        _indexStore = indexStore;
     }
 
-    public async Task AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null)
+    public async Task<(int ShardIndex, long RowId)> AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null)
     {
         var table = await _schemaStore.ReadSchemaAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{tableName}' not found");
 
         var rowToSerialize = row;
+        long rowId;
         var usesRowId = table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0;
         if (usesRowId && row.GetValue(TableDefinition.RowIdColumnName) == null)
         {
-            var nextId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false);
+            rowId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false);
             var dict = new Dictionary<string, string>(row.Values, StringComparer.OrdinalIgnoreCase)
             {
-                [TableDefinition.RowIdColumnName] = nextId.ToString()
+                [TableDefinition.RowIdColumnName] = rowId.ToString()
             };
             rowToSerialize = new RowData(dict);
         }
+        else
+        {
+            var rowIdStr = rowToSerialize.GetValue(TableDefinition.RowIdColumnName);
+            rowId = long.TryParse(rowIdStr, out var rid) ? rid : 0;
+        }
 
         var line = _serializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName) + Environment.NewLine;
-        var shardIndex = GetAppendShardIndex(databasePath, tableName, table.MaxShardSize, line.Length);
+        var newRowBytes = line.Length;
+
+        if (table.MaxShardSize is > 0)
+        {
+            var path0 = GetDataFilePath(databasePath, tableName, 0);
+            var path1 = GetDataFilePath(databasePath, tableName, 1);
+            if (_fs.FileExists(path0) && !_fs.FileExists(path1) && _fs.GetFileLength(path0) + newRowBytes > table.MaxShardSize.Value)
+                await SplitShardAsync(databasePath, tableName, table, 0, cancellationToken).ConfigureAwait(false);
+        }
+
+        var shardIndex = GetAppendShardIndex(databasePath, tableName, table.MaxShardSize, newRowBytes);
         var dataPath = GetDataFilePath(databasePath, tableName, shardIndex);
 
         _fs.CreateDirectory(Path.GetDirectoryName(dataPath)!);
         await _fs.AppendAllTextAsync(dataPath, line, cancellationToken).ConfigureAwait(false);
+
+        if (shardIndex >= 1)
+            await BuildAndWriteStocAsync(databasePath, tableName, table, cancellationToken).ConfigureAwait(false);
+
+        return (shardIndex, rowId);
+    }
+
+    private async Task SplitShardAsync(string databasePath, string tableName, TableDefinition table, int shardToSplit, CancellationToken cancellationToken)
+    {
+        var dataPath = GetDataFilePath(databasePath, tableName, shardToSplit);
+        if (!_fs.FileExists(dataPath))
+            return;
+
+        var rows = new List<(bool IsActive, RowData Row, string Serialized)>();
+        await foreach (var line in _fs.ReadLinesAsync(dataPath, cancellationToken).ConfigureAwait(false))
+        {
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+            var row = _deserializer.Deserialize(line, table, out var isActive);
+            var serialized = _serializer.Serialize(row, table, isActive, null, tableName);
+            rows.Add((isActive, row, serialized));
+        }
+
+        if (rows.Count < 2)
+            return;
+
+        var half = rows.Count / 2;
+        var firstHalf = rows.Take(half).ToList();
+        var secondHalf = rows.Skip(half).ToList();
+        var newline = Environment.NewLine;
+
+        var path0 = GetDataFilePath(databasePath, tableName, shardToSplit);
+        var path1 = GetDataFilePath(databasePath, tableName, shardToSplit + 1);
+        var tmp0 = path0 + ".split.tmp";
+        var tmp1 = path1 + ".split.tmp";
+
+        _fs.CreateDirectory(Path.GetDirectoryName(path0)!);
+
+        var sb0 = new StringBuilder();
+        foreach (var (_, _, s) in firstHalf)
+            sb0.Append(s).Append(newline);
+        sb0.Append(newline);
+        await _fs.WriteAllTextAsync(tmp0, sb0.ToString(), cancellationToken).ConfigureAwait(false);
+
+        var sb1 = new StringBuilder();
+        foreach (var (_, _, s) in secondHalf)
+            sb1.Append(s).Append(newline);
+        sb1.Append(newline);
+        await _fs.WriteAllTextAsync(tmp1, sb1.ToString(), cancellationToken).ConfigureAwait(false);
+
+        _fs.MoveFile(tmp0, path0);
+        _fs.MoveFile(tmp1, path1);
+
+        if (_indexStore != null)
+        {
+            foreach (var (_, row, _) in secondHalf)
+            {
+                var rowIdStr = row.GetValue(TableDefinition.RowIdColumnName);
+                if (string.IsNullOrEmpty(rowIdStr) || !long.TryParse(rowIdStr, out var rowId))
+                    continue;
+
+                if (table.PrimaryKey.Count > 0)
+                {
+                    var pkKey = IndexStore.FormatCompositeKeyFromRow(row, table.PrimaryKey);
+                    await _indexStore.RemoveIndexEntryByValueAndRowIdAsync(databasePath, tableName, "_PK", pkKey, rowId, cancellationToken).ConfigureAwait(false);
+                    await _indexStore.AddIndexEntryAsync(databasePath, tableName, "_PK", pkKey, rowId, shardToSplit + 1, cancellationToken).ConfigureAwait(false);
+                }
+                foreach (var fk in table.ForeignKeys)
+                {
+                    var fkVal = row.GetValue(fk.ColumnName) ?? "";
+                    var idxName = $"_FK_{fk.ReferencedTable}";
+                    await _indexStore.RemoveIndexEntryByValueAndRowIdAsync(databasePath, tableName, idxName, fkVal, rowId, cancellationToken).ConfigureAwait(false);
+                    await _indexStore.AddIndexEntryAsync(databasePath, tableName, idxName, fkVal, rowId, shardToSplit + 1, cancellationToken).ConfigureAwait(false);
+                }
+                if (table.UniqueColumns.Count > 0)
+                {
+                    var uqKey = IndexStore.FormatCompositeKeyFromRow(row, table.UniqueColumns);
+                    var uqName = "_UQ_" + string.Join("_", table.UniqueColumns);
+                    await _indexStore.RemoveIndexEntryByValueAndRowIdAsync(databasePath, tableName, uqName, uqKey, rowId, cancellationToken).ConfigureAwait(false);
+                    await _indexStore.AddIndexEntryAsync(databasePath, tableName, uqName, uqKey, rowId, shardToSplit + 1, cancellationToken).ConfigureAwait(false);
+                }
+                foreach (var idx in table.Indexes)
+                {
+                    var idxFileName = GetIndexFileNameForDefinition(table, idx);
+                    var key = IndexStore.FormatCompositeKeyFromRow(row, idx.ColumnNames);
+                    await _indexStore.RemoveIndexEntryByValueAndRowIdAsync(databasePath, tableName, idxFileName, key, rowId, cancellationToken).ConfigureAwait(false);
+                    await _indexStore.AddIndexEntryAsync(databasePath, tableName, idxFileName, key, rowId, shardToSplit + 1, cancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+
+        await BuildAndWriteStocAsync(databasePath, tableName, table, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string GetIndexFileNameForDefinition(TableDefinition table, IndexDefinition idx)
+    {
+        var sameCols = (table.Indexes ?? Array.Empty<IndexDefinition>()).Where(i => i.ColumnNames.SequenceEqual(idx.ColumnNames, StringComparer.OrdinalIgnoreCase)).ToList();
+        var pos = sameCols.IndexOf(idx);
+        return "_INX_" + string.Join("_", idx.ColumnNames) + "_" + (pos >= 0 ? pos : 0);
     }
 
     private int GetAppendShardIndex(string databasePath, string tableName, long? maxShardSize, int newRowBytes)
@@ -72,6 +193,48 @@ public sealed class TableDataStore : ITableDataStore
 
             shardIndex++;
         }
+    }
+
+    private async Task BuildAndWriteStocAsync(string databasePath, string tableName, TableDefinition table, CancellationToken cancellationToken)
+    {
+        var entries = new List<StocEntry>();
+        var shardIndex = 0;
+
+        while (true)
+        {
+            var dataPath = GetDataFilePath(databasePath, tableName, shardIndex);
+            if (!_fs.FileExists(dataPath))
+                break;
+
+            var fileName = Path.GetFileName(dataPath);
+            long minRowId = long.MaxValue, maxRowId = long.MinValue;
+            var rowCount = 0;
+
+            await foreach (var line in _fs.ReadLinesAsync(dataPath, cancellationToken).ConfigureAwait(false))
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+
+                var row = _deserializer.Deserialize(line, table, out _);
+                var rowIdStr = row.GetValue(TableDefinition.RowIdColumnName);
+                if (!string.IsNullOrEmpty(rowIdStr) && long.TryParse(rowIdStr, out var rowId))
+                {
+                    if (rowId < minRowId) minRowId = rowId;
+                    if (rowId > maxRowId) maxRowId = rowId;
+                    rowCount++;
+                }
+            }
+
+            if (rowCount > 0)
+                entries.Add(new StocEntry(shardIndex, minRowId, maxRowId, fileName, rowCount));
+            else
+                entries.Add(new StocEntry(shardIndex, 0, 0, fileName, 0));
+
+            shardIndex++;
+        }
+
+        if (entries.Count >= 2)
+            await _stocStore.WriteStocAsync(databasePath, tableName, entries, cancellationToken).ConfigureAwait(false);
     }
 
     public async IAsyncEnumerable<RowData> ReadRowsAsync(string databasePath, string tableName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -324,8 +487,16 @@ public sealed class TableDataStore : ITableDataStore
             existingShardIndex++;
         }
 
+        if (outputShardIndex >= 2)
+            await BuildAndWriteStocAsync(databasePath, tableName, table, cancellationToken).ConfigureAwait(false);
+        else if (outputShardIndex == 1 && _fs.FileExists(GetStocPath(databasePath, tableName)))
+            _fs.DeleteFile(GetStocPath(databasePath, tableName));
+
         return (total, active, total - active);
     }
+
+    private string GetStocPath(string databasePath, string tableName) =>
+        _fs.Combine(databasePath, "Tables", tableName, $"{tableName}_STOC.txt");
 
     private string GetDataFilePath(string databasePath, string tableName, int shardIndex)
     {

@@ -82,6 +82,27 @@ sqltxt inspect --db ./WikiDb
 sqltxt inspect --db ./WikiDb.wasmdb --wasm
 ```
 
+### rebalance
+
+Rebalances shards for a table. Compacts soft-deleted rows and redistributes data across shards according to `MaxShardSize`. Use after many deletes to reclaim space.
+
+```
+sqltxt rebalance --db <path> --table <name> [--wasm]
+```
+
+**Examples:**
+```bash
+sqltxt rebalance --db ./WikiDb --table Page
+```
+
+### WITH (NOLOCK)
+
+For `query` and `exec` with SELECT: add `WITH (NOLOCK)` to skip read locks (dirty reads). Useful when you need to read without blocking writers.
+
+```bash
+sqltxt query --db ./WikiDb "SELECT * FROM User WITH (NOLOCK)"
+```
+
 ## Common Workflows
 
 ### Create and seed the sample Wiki database

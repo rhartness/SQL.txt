@@ -155,4 +155,14 @@ public class SqlCommandParserTests
         var select = (SelectCommand)cmd;
         Assert.True(select.WithNoLock);
     }
+
+    [Fact]
+    public void Parse_CreateTableWithUnique_ParsesCorrectly()
+    {
+        var cmd = _parser.Parse("CREATE TABLE T (Id CHAR(10) PRIMARY KEY, Email CHAR(50) UNIQUE)");
+        Assert.IsType<CreateTableCommand>(cmd);
+        var create = (CreateTableCommand)cmd;
+        Assert.Single(create.Table.UniqueColumns);
+        Assert.Equal("Email", create.Table.UniqueColumns[0]);
+    }
 }

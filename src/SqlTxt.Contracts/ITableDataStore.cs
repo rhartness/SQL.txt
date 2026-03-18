@@ -13,7 +13,8 @@ public interface ITableDataStore
     /// <param name="row">Row data (active).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <param name="warnings">Optional list to collect truncation warnings.</param>
-    Task AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null);
+    /// <returns>Shard index and _RowId of the appended row.</returns>
+    Task<(int ShardIndex, long RowId)> AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null);
 
     /// <summary>
     /// Reads all active rows from the table.

@@ -18,6 +18,7 @@ SQL.txt is for people who like to learn by doing, who enjoy poking around their 
 - **Cross-platform** — Windows, macOS, Linux
 - **Three build types** — CLI executable, NuGet API DLL, installable Service (Phase 2)
 - **Async API** — All DB functions via async methods; supports concurrent API calls
+- **Phase 2 relational** — Primary keys, foreign keys, UNIQUE, indexes, sharding, reader-writer locks, rebalance
 - **Structured progression** — Phased implementation from simple to relational engine
 - **.NET 8** — Modern C# with async/await support
 

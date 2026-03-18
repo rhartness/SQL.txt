@@ -3,7 +3,8 @@ using SqlTxt.Contracts;
 namespace SqlTxt.Storage;
 
 /// <summary>
-/// Manages index files in table folder. Format: one line per entry, Value|_RowId.
+/// Manages index files in table folder. Format: one line per entry, Value|ShardId|_RowId.
+/// Backward compatible with legacy Value|_RowId (parsed as ShardId=0).
 /// </summary>
 public sealed class IndexStore : IIndexStore
 {
@@ -29,11 +30,11 @@ public sealed class IndexStore : IIndexStore
         await _fs.WriteAllTextAsync(path, "", cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task AddIndexEntryAsync(string databasePath, string tableName, string indexFileName, string keyValue, long rowId, CancellationToken cancellationToken = default)
+    public async Task AddIndexEntryAsync(string databasePath, string tableName, string indexFileName, string keyValue, long rowId, int shardId = 0, CancellationToken cancellationToken = default)
     {
         var path = GetIndexPath(databasePath, tableName, indexFileName);
         _fs.CreateDirectory(Path.GetDirectoryName(path)!);
-        var line = $"{keyValue}|{rowId}{Environment.NewLine}";
+        var line = $"{keyValue}|{shardId}|{rowId}{Environment.NewLine}";
         await _fs.AppendAllTextAsync(path, line, cancellationToken).ConfigureAwait(false);
     }
 
@@ -59,9 +60,19 @@ public sealed class IndexStore : IIndexStore
         if (!_fs.FileExists(path))
             return;
 
-        var lineToRemove = $"{keyValue}|{rowId}";
+        var rowIdStr = rowId.ToString();
         var lines = await _fs.ReadAllLinesAsync(path, cancellationToken).ConfigureAwait(false);
-        var kept = lines.Where(l => l != lineToRemove).ToList();
+        var kept = lines.Where(l =>
+        {
+            if (string.IsNullOrWhiteSpace(l))
+                return true;
+            var parts = l.Split('|');
+            if (parts.Length < 2)
+                return true;
+            var keyPart = parts[0];
+            var lastPart = parts[^1].Trim();
+            return keyPart != keyValue || lastPart != rowIdStr;
+        }).ToList();
 
         var tmpPath = path + ".tmp";
         var content = kept.Count > 0 ? string.Join(Environment.NewLine, kept) + Environment.NewLine : "";
@@ -82,11 +93,19 @@ public sealed class IndexStore : IIndexStore
         {
             if (string.IsNullOrWhiteSpace(line))
                 continue;
-            if (line.StartsWith(prefix, StringComparison.Ordinal))
+            if (!line.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var rest = line[prefix.Length..].Trim();
+            var parts = rest.Split('|');
+            if (parts.Length == 1)
             {
-                var rest = line[prefix.Length..].Trim();
-                if (long.TryParse(rest, out var rid))
+                if (long.TryParse(parts[0], out var rid))
                     result.Add(rid);
+            }
+            else if (parts.Length >= 2 && long.TryParse(parts[^1].Trim(), out var rid))
+            {
+                result.Add(rid);
             }
         }
 
@@ -113,12 +132,21 @@ public sealed class IndexStore : IIndexStore
                 continue;
 
             var key = FormatCompositeKeyFromRow(row, keyColumns);
-            lines.Add($"{key}|{rowId}");
+            var shardId = GetShardIdFromRow(row);
+            lines.Add($"{key}|{shardId}|{rowId}");
         }
+
+        lines.Sort(StringComparer.Ordinal);
 
         var content = lines.Count > 0 ? string.Join(Environment.NewLine, lines) + Environment.NewLine : "";
         await _fs.WriteAllTextAsync(tmpPath, content, cancellationToken).ConfigureAwait(false);
         _fs.MoveFile(tmpPath, path);
+    }
+
+    private static int GetShardIdFromRow(RowData row)
+    {
+        var val = row.GetValue("_ShardId");
+        return int.TryParse(val, out var sid) ? sid : 0;
     }
 
     private string GetIndexPath(string databasePath, string tableName, string indexFileName)
