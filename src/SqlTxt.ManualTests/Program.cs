@@ -23,7 +23,7 @@ logger.Log(string.Empty);
 var results = new List<TestResult>();
 try
 {
-    var isValidTest = testName is "concurrency" or "sharding" or "all";
+    var isValidTest = testName is "concurrency" or "sharding" or "sharding-varchar" or "all";
     if (!isValidTest)
     {
         var unknown = UnknownTest(testName);
@@ -46,6 +46,11 @@ try
             collected.Add(await RunShardingAsync(argsList, textPath, logger, "text").ConfigureAwait(false));
             collected.Add(await RunShardingAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
         }
+        if (testName is "sharding-varchar" or "all")
+        {
+            collected.Add(await RunVarcharShardingAsync(argsList, textPath, logger, "text").ConfigureAwait(false));
+            collected.Add(await RunVarcharShardingAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
+        }
         results = collected;
         logger.LogComparisonTable(collected);
         foreach (var r in collected)
@@ -57,6 +62,7 @@ try
         {
             "concurrency" => await RunConcurrencyAsync(argsList, dbPath, logger, storage),
             "sharding" => await RunShardingAsync(argsList, dbPath, logger, storage),
+            "sharding-varchar" => await RunVarcharShardingAsync(argsList, dbPath, logger, storage),
             "all" => await RunAllAsync(argsList, dbPath, logger, storage),
             _ => UnknownTest(testName)
         };
@@ -175,24 +181,49 @@ static async Task<TestResult> RunAllAsync(List<string> args, string dbPath, Resu
 {
     var concurrencyResult = await RunConcurrencyAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
     var shardingResult = await RunShardingAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
+    var varcharShardingResult = await RunVarcharShardingAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
 
-    var passed = concurrencyResult.Passed && shardingResult.Passed;
+    var passed = concurrencyResult.Passed && shardingResult.Passed && varcharShardingResult.Passed;
     return new TestResult(
         "All",
         passed,
-        concurrencyResult.Duration + shardingResult.Duration,
-        concurrencyResult.OperationsCount + shardingResult.OperationsCount,
-        concurrencyResult.SuccessCount + shardingResult.SuccessCount,
-        concurrencyResult.FailureCount + shardingResult.FailureCount,
-        concurrencyResult.Exceptions.Concat(shardingResult.Exceptions).ToList(),
+        concurrencyResult.Duration + shardingResult.Duration + varcharShardingResult.Duration,
+        concurrencyResult.OperationsCount + shardingResult.OperationsCount + varcharShardingResult.OperationsCount,
+        concurrencyResult.SuccessCount + shardingResult.SuccessCount + varcharShardingResult.SuccessCount,
+        concurrencyResult.FailureCount + shardingResult.FailureCount + varcharShardingResult.FailureCount,
+        concurrencyResult.Exceptions.Concat(shardingResult.Exceptions).Concat(varcharShardingResult.Exceptions).ToList(),
         null,
         storage is "binary" ? "binary" : null);
+}
+
+static async Task<TestResult> RunVarcharShardingAsync(List<string> args, string dbPath, ResultLogger logger, string storage)
+{
+    var shards = 5;
+    var rows = 200;
+
+    for (var i = 0; i < args.Count; i++)
+    {
+        if (args[i] == "--shards" && i + 1 < args.Count && int.TryParse(args[i + 1], out var s))
+        {
+            shards = Math.Max(1, s);
+            i++;
+        }
+        else if (args[i] == "--rows" && i + 1 < args.Count && int.TryParse(args[i + 1], out var r))
+        {
+            rows = Math.Max(1, r);
+            i++;
+        }
+    }
+
+    var storageBackend = storage is "binary" ? "binary" : null;
+    logger.Log($"Sharding (VARCHAR) test: desired shards={shards}, rows={rows}, storage={storage}");
+    return await VarcharShardingTest.RunAsync(dbPath, shards, rows, storageBackend, logger).ConfigureAwait(false);
 }
 
 static TestResult UnknownTest(string name)
 {
     Console.Error.WriteLine($"Unknown test: {name}");
-    Console.Error.WriteLine("Valid tests: concurrency, sharding, all");
+    Console.Error.WriteLine("Valid tests: concurrency, sharding, sharding-varchar, all");
     return new TestResult(name, false, TimeSpan.Zero, 0, 0, 1, new[] { $"Unknown test: {name}" }, null);
 }
 
@@ -205,9 +236,10 @@ static void PrintUsage()
           dotnet run --project src/SqlTxt.ManualTests -- <test> [options]
 
         Tests:
-          concurrency    High concurrency: multi-thread INSERT/UPDATE/DELETE
-          sharding       Sharding: insert many rows, measure query speed
-          all            Run both tests
+          concurrency       High concurrency: multi-thread INSERT/UPDATE/DELETE
+          sharding          Sharding: insert many rows (fixed-width), measure query speed
+          sharding-varchar  Sharding: insert many rows (VARCHAR), verify rebalance
+          all               Run all tests
 
         Common options:
           --db <path>       Database path (default: current directory)
@@ -221,12 +253,13 @@ static void PrintUsage()
           --readers <n>  Concurrent SELECT threads with NOLOCK (default: 0)
 
         Sharding options:
-          --shards <n>   Desired shard count for Page table (default: 5)
-          --rows <n>     Number of Page rows to insert (default: 500)
+          --shards <n>   Desired shard count (default: 5)
+          --rows <n>     Number of rows to insert (default: 500 for sharding, 200 for sharding-varchar)
 
         Examples:
           dotnet run --project src/SqlTxt.ManualTests -- concurrency --db ./TestDb
           dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --storage all
+          dotnet run --project src/SqlTxt.ManualTests -- sharding-varchar --db ./TestDb --rows 200
           dotnet run --project src/SqlTxt.ManualTests -- all --db ./TestDb --storage all --log ./results.log
         """);
 }

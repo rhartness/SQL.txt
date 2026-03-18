@@ -22,8 +22,9 @@ dotnet run --project src/SqlTxt.ManualTests -- <test> [options]
 | Test | Description |
 |------|--------------|
 | `concurrency` | High concurrency: multi-thread INSERT, UPDATE, DELETE (and optional SELECT with NOLOCK) |
-| `sharding` | Sharding: insert many Page rows, measure full scan and index lookup speed |
-| `all` | Run both tests |
+| `sharding` | Sharding: insert many Page rows (fixed-width), measure full scan and index lookup speed |
+| `sharding-varchar` | Sharding: insert many Notes rows (VARCHAR), verify shard split and rebalance |
+| `all` | Run all tests |
 
 ## Common Options
 
@@ -48,10 +49,10 @@ Use `--storage all` to run each test for both text and binary backends and log a
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--shards <n>` | Desired shard count for Page table | 5 |
-| `--rows <n>` | Number of Page rows to insert | 500 |
+| `--shards <n>` | Desired shard count for Page/Notes table | 5 |
+| `--rows <n>` | Number of Page/Notes rows to insert | 500 |
 
-Sharding tests include: full scan, lookup by Id (PK), lookup by Slug (indexed), and group-by (CreatedById). Update these when features like JOINs or GROUP BY are added.
+Sharding tests include: full scan, lookup by Id (PK), lookup by Slug (indexed), and group-by (CreatedById). Update these when features like JOINs or GROUP BY are added. The `sharding-varchar` test exercises VARCHAR tables, shard split with variable-width rows, and RebalanceTableAsync.
 
 ## Examples
 
@@ -59,6 +60,7 @@ Sharding tests include: full scan, lookup by Id (PK), lookup by Slug (indexed), 
 dotnet run --project src/SqlTxt.ManualTests -- concurrency --db ./TestDb
 dotnet run --project src/SqlTxt.ManualTests -- concurrency --db ./TestDb --threads 4 --ops 20
 dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --shards 5 --rows 500
+dotnet run --project src/SqlTxt.ManualTests -- sharding-varchar --db ./TestDb --rows 200
 dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --storage all
 dotnet run --project src/SqlTxt.ManualTests -- all --db ./TestDb --storage all --log ./results.log
 ```

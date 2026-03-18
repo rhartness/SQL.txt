@@ -29,6 +29,14 @@ Use known input and expected output files for:
 - Data files
 - Metadata files
 
+## Manual Tests
+
+- **Location:** [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests)
+- **Tests:** `concurrency`, `sharding`, `sharding-varchar`
+- **Run:** `dotnet run --project src/SqlTxt.ManualTests -- <test> --db ./TestDb`
+- Use `--storage all` to compare text vs binary
+- When adding storage/sharding/format features: extend manual tests and run them
+
 ## Guidelines
 
 - Use temp directories for integration tests; clean up after.

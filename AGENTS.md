@@ -16,14 +16,14 @@
 | **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only; SQL:2023 subset |
 | **Phase 2** | Done | Indexes, PK/FK, constraints, STOC, configurable sharding (20MB default), rebalance API |
-| **Phase 3** | Next | VARCHAR, variable-width fields, storage evolution |
-| **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
+| **Phase 3** | Done | VARCHAR, variable-width fields, storage evolution |
+| **Phase 4** | Next | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
 | **CTE Phase** | Planned | Common Table Expressions (WITH clause); non-recursive and recursive |
 | **Phase 5** | Planned | ALTER TABLE, transactions |
 | **Phase 6** | Planned | Views, stored procedures, functions |
 | **Phase 7** | Planned | Statistics (CREATE STATISTICS, histograms, cardinality estimation) |
 
-**Current focus:** Phase 2. Use [docs/plans/Phase2_Implementation_Plan.md](docs/plans/Phase2_Implementation_Plan.md) when available. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
+**Current focus:** Phase 4. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
 
 ## Prompt Strategy
 
@@ -41,6 +41,14 @@
 - "Implement everything in Phase 1."
 
 When generating plan documents, consider asking: "Do you want specific manual tests generated for this feature?" Manual tests live in [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests) and can be extended per feature.
+
+### Manual Tests
+
+- **Location:** [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests)
+- **When to run:** After storage, sharding, or concurrency changes
+- **Tests:** `concurrency`, `sharding`, `sharding-varchar`, `all`
+- **Command:** `dotnet run --project src/SqlTxt.ManualTests -- <test> --db ./TestDb [--storage all]`
+- **Prompt:** "Do you want specific manual tests generated for this feature?" when adding storage/sharding/concurrency features
 
 ## Efficiency Requirements (Knuth-Style)
 
@@ -70,7 +78,8 @@ These rules apply to **every** sub-plan execution:
 2. **On feature addition:** Update [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md) with implemented feature IDs
 3. **On API/CLI change:** Update [docs/cli-reference.md](docs/cli-reference.md), Getting Started docs, and XML comments
 4. **On storage change:** Update [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md)
-5. **Examples:** Provide examples for CLI (filesystem), CLI (WASM), and Embedding per [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
+5. **On storage/format change:** Run manual tests (`sharding`, `sharding-varchar`, `concurrency`) and extend them if the change affects row format, sharding, or locking
+6. **Examples:** Provide examples for CLI (filesystem), CLI (WASM), and Embedding per [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
 
 ## Key References
 

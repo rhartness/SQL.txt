@@ -91,4 +91,5 @@ Address identified bottlenecks in the SQL.txt engine that cause slow multi-row I
 - [ ] Multi-row INSERT uses batch RowId allocation (1 read/write for N rows)
 - [ ] Storage backend resolved once per database per session (cached)
 - [ ] Manual sharding test (500 rows) runs significantly faster (e.g., < 2s vs ~10s)
+- [ ] Manual sharding-varchar test passes with variable-width rows
 - [ ] All existing tests pass
