@@ -68,6 +68,13 @@ Future interface changes to support efficiency:
 - **IFileSystemAccessor**: Add `OpenReadStreamAsync`, `OpenWriteStreamAsync`, or `ReadLinesAsync` (streaming `IAsyncEnumerable<string>`) for large-file scenarios.
 - **ITableDataStore**: Ensure `ReadRowsAsync` uses true streaming internally (line-by-line); consider `StreamRowsAsync` if a different contract is needed.
 
+## INSERT Efficiency
+
+- **STOC update:** Only on shard split and rebalance (per [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md)); not on every append to existing shards.
+- **Batch RowId allocation:** For multi-row INSERT, allocate RowIds in a single read/write cycle.
+- **Storage backend caching:** Cache resolved backend per database path; avoid repeated manifest reads.
+- See [Efficiency_Improvements_Plan.md](../plans/Efficiency_Improvements_Plan.md) for implementation details.
+
 ## Index and Statistics Design
 
 - **Index STOC:** Shard Table of Contents enables O(affected rows) maintenance on shard split; avoid full index rebuild. See [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md).
@@ -78,3 +85,4 @@ Future interface changes to support efficiency:
 - [02-storage-format.md](02-storage-format.md) — On-disk layout, row format
 - [06-durability-and-sharding.md](06-durability-and-sharding.md) — Sharding, error handling
 - [Efficiency_Audit_Methodology.md](../plans/Efficiency_Audit_Methodology.md) — Audit process for existing code
+- [Efficiency_Improvements_Plan.md](../plans/Efficiency_Improvements_Plan.md) — INSERT and STOC efficiency fixes

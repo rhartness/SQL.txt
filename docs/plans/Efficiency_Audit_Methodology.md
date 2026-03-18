@@ -32,6 +32,7 @@ For each component that performs I/O or allocates large structures:
 | For writes: Is it atomic? | Does it use temp file + rename? |
 | For UPDATE/DELETE: Could it use stream-in/stream-out? | Instead of full materialization |
 | Does it respect sharding? | Multi-shard read/write when applicable |
+| STOC update frequency | Only on split/rebalance, not per append (see [Efficiency_Improvements_Plan.md](Efficiency_Improvements_Plan.md)) |
 | Knuth-style? | Is the algorithm/structure optimal for scale? |
 
 ## Prioritization

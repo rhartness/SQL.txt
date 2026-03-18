@@ -414,3 +414,4 @@ flowchart TB
 - Index builds: use streaming scan; write index via StreamWriter or StringBuilder per [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md)
 - FK checks: index lookup is O(n) for one-entry-per-line; consider sort for binary search in future
 - Lock manager: avoid blocking; use async lock acquisition
+- INSERT and STOC: see [Efficiency_Improvements_Plan.md](Efficiency_Improvements_Plan.md) for STOC update frequency and batch RowId allocation

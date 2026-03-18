@@ -22,6 +22,7 @@ ShardId|MinRowId|MaxRowId|FilePath|RowCount
 
 - Enables range-based lookups and efficient shard split maintenance
 - Updated when shards are created, split, or rebalanced
+- Not updated on every append to existing shards; only when shards are created (split), split, or rebalanced
 
 ### Index Format (Multi-Shard)
 

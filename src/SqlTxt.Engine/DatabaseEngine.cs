@@ -40,7 +40,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         _schemaStore = new CachingSchemaStore(schemaStore);
         _metadataStore = new MetadataStore(_fs);
         _dbCreator = new DatabaseCreator(_fs);
-        var backendResolver = new StorageBackendResolver(_dbCreator);
+        var backendResolver = new CachingStorageBackendResolver(new StorageBackendResolver(_dbCreator));
         _tableDataStore = new TableDataStore(_fs, serializer, deserializer, _schemaStore, _rowIdStore, stocStore: null, indexStore: _indexStore, backendResolver: backendResolver);
     }
 
@@ -390,8 +390,19 @@ public sealed class DatabaseEngine : IDatabaseEngine
         var table = await _schemaStore.ReadSchemaAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{cmd.TableName}' not found");
 
+        var usesRowId = table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0;
+        long rowIdStart = 0;
+        var rowIdCount = 0;
+        if (usesRowId && cmd.ValueRows.Count > 1)
+        {
+            var (start, count) = await _rowIdStore.GetNextRangeAndIncrementAsync(databasePath, cmd.TableName, cmd.ValueRows.Count, cancellationToken).ConfigureAwait(false);
+            rowIdStart = start;
+            rowIdCount = count;
+        }
+
         var allWarnings = new List<string>();
         var insertedCount = 0;
+        var rowIndex = 0;
 
         foreach (var values in cmd.ValueRows)
         {
@@ -434,9 +445,12 @@ public sealed class DatabaseEngine : IDatabaseEngine
             }
 
             long rowId = 0;
-            if (table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0)
+            if (usesRowId)
             {
-                rowId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
+                if (rowIdCount > 0)
+                    rowId = rowIdStart + rowIndex;
+                else
+                    rowId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
                 rowDict[TableDefinition.RowIdColumnName] = rowId.ToString();
                 row = new RowData(rowDict);
             }
@@ -473,6 +487,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
             }
 
             insertedCount++;
+            rowIndex++;
         }
 
         if (insertedCount > 0)

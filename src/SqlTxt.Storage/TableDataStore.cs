@@ -107,9 +107,6 @@ public sealed class TableDataStore : ITableDataStore
             await _fs.AppendAllTextAsync(dataPath, line, cancellationToken).ConfigureAwait(false);
         }
 
-        if (shardIndex >= 1)
-            await BuildAndWriteStocAsync(databasePath, tableName, table, cancellationToken, ext).ConfigureAwait(false);
-
         return (shardIndex, rowId);
     }
 
