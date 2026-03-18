@@ -19,10 +19,12 @@ public sealed record ColumnDefinition(
 {
     /// <summary>
     /// Gets the storage width in characters for fixed-width serialization.
+    /// For VARCHAR, returns max length (used for validation, not padding).
     /// </summary>
     public int StorageWidth => Type switch
     {
         ColumnType.Char => Width ?? 0,
+        ColumnType.VarChar => Width ?? 0,
         ColumnType.Int => 11,
         ColumnType.TinyInt => 4,
         ColumnType.BigInt => 20,
@@ -30,4 +32,9 @@ public sealed record ColumnDefinition(
         ColumnType.Decimal => (Width ?? 0) + 2, // precision + sign + decimal point
         _ => 0,
     };
+
+    /// <summary>
+    /// True if the column uses variable-width storage (VARCHAR).
+    /// </summary>
+    public bool IsVariableWidth => Type == ColumnType.VarChar;
 }

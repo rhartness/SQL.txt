@@ -20,7 +20,7 @@ A simplified Wiki schema for use as a sample database. Contains tables for pages
 
 ## Table Definitions
 
-The schema uses Phase 2 features: primary keys, foreign keys, and indexes for common lookups.
+The schema uses Phase 2 features (primary keys, foreign keys, indexes) and Phase 3 VARCHAR for variable-length content.
 
 ### User
 
@@ -53,7 +53,7 @@ CREATE TABLE Page (
 CREATE TABLE PageContent (
     Id CHAR(10) PRIMARY KEY,
     PageId CHAR(10),
-    Content CHAR(5000),
+    Content VARCHAR(5000),
     Version INT,
     CreatedById CHAR(10),
     CreatedAt CHAR(24),

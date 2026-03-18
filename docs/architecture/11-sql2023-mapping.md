@@ -32,7 +32,7 @@ This document maps SQL.txt phases to ISO/IEC 9075-2:2023 (SQL:2023 Foundation) f
 
 | Feature | SQL:2023 ID | Notes |
 |---------|--------------|-------|
-| VARCHAR | Core character types | Variable-length |
+| VARCHAR | Core character types | Variable-length; implemented |
 | T055 | String padding functions | LPAD, RPAD |
 | T056 | Multi-character TRIM | TRIM with multiple characters |
 | T062 | Character length units | CHAR_LENGTH, OCTET_LENGTH |

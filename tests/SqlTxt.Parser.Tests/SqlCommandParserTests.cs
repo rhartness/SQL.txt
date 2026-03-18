@@ -202,4 +202,36 @@ public class SqlCommandParserTests
         Assert.Single(create.Table.UniqueColumns);
         Assert.Equal("Email", create.Table.UniqueColumns[0]);
     }
+
+    [Fact]
+    public void Parse_CreateTableWithVarchar_ParsesCorrectly()
+    {
+        var cmd = _parser.Parse("CREATE TABLE Notes (Id CHAR(10), Title VARCHAR(100), Body VARCHAR(1000))");
+        Assert.IsType<CreateTableCommand>(cmd);
+        var create = (CreateTableCommand)cmd;
+        Assert.Equal(3, create.Table.Columns.Count);
+        Assert.Equal(ColumnType.Char, create.Table.Columns[0].Type);
+        Assert.Equal(ColumnType.VarChar, create.Table.Columns[1].Type);
+        Assert.Equal(100, create.Table.Columns[1].Width);
+        Assert.Equal(ColumnType.VarChar, create.Table.Columns[2].Type);
+        Assert.Equal(1000, create.Table.Columns[2].Width);
+    }
+
+    [Fact]
+    public void Parse_CreateTableWithMixedCharVarchar_ParsesCorrectly()
+    {
+        var cmd = _parser.Parse("CREATE TABLE T (A CHAR(5), B VARCHAR(50), C INT)");
+        Assert.IsType<CreateTableCommand>(cmd);
+        var create = (CreateTableCommand)cmd;
+        Assert.Equal(ColumnType.Char, create.Table.Columns[0].Type);
+        Assert.Equal(ColumnType.VarChar, create.Table.Columns[1].Type);
+        Assert.Equal(ColumnType.Int, create.Table.Columns[2].Type);
+    }
+
+    [Fact]
+    public void Parse_VarcharZeroLength_ThrowsParseException()
+    {
+        var ex = Assert.Throws<ParseException>(() => _parser.Parse("CREATE TABLE T (A VARCHAR(0))"));
+        Assert.Contains("positive length", ex.Message);
+    }
 }

@@ -64,7 +64,7 @@ Contains all properties specific to the database itself. It describes the databa
 When `storageBackend=binary`, table data files use extension `.bin` and a fixed-length record format:
 
 - **Record layout:** 1 byte flag (0=active, 1=deleted) + 8 bytes RowId (little-endian) + fixed-width column values per schema
-- **Column bytes:** CHAR(n)=n, INT=4, TINYINT=1, BIGINT=8, BIT=1, DECIMAL=8
+- **Column bytes:** CHAR(n)=n, VARCHAR(n)=n, INT=4, TINYINT=1, BIGINT=8, BIT=1, DECIMAL=8
 - **numberFormat** — Optional; default `"standard"` (decimal `.`). Override for locale-specific numeric formatting.
 - **textEncoding** — Optional; only fixed-width encodings (each character = fixed bytes). No UTF-8. Default: ASCII or platform fixed-width.
 - **defaultMaxShardSize** — Optional; default 20 MB (20,971,520 bytes). Database-level default for table shard size. Overridable per table via `CREATE TABLE ... WITH (maxShardSize=...)`. See [06-durability-and-sharding.md](06-durability-and-sharding.md).
@@ -92,7 +92,7 @@ Schema and per-table metadata may be stored in the table folder or in `~System`.
 
 ### Root Data File Format
 
-Fixed-width positional rows with soft-delete marker:
+**Format version 1 (fixed-width):** Positional rows with soft-delete marker:
 
 ```
 A|1         Richard                                           richard@example.com
@@ -103,6 +103,17 @@ D|3         Bob                                               bob@example.com
 - `A`: Active row
 - `D`: Deleted row
 - Pipe-delimited; fields padded to fixed width per schema
+
+**Format version 2 (variable-width):** Length-prefixed segments for tables with VARCHAR columns:
+
+```
+A|1|1:1|5:Hello|17:This is body text
+```
+
+- `A|` or `D|`: Active/deleted marker
+- Each field: `length:value` (e.g., `5:Hello` = 5 chars, value "Hello")
+- Values may contain `|` and `:`; length defines exact character count
+- CHAR and VARCHAR columns stored without padding
 
 ## ~System/ Folder
 

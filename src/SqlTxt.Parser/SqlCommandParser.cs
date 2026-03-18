@@ -266,6 +266,17 @@ public sealed class SqlCommandParser : ICommandParser
         return new ColumnDefinition("", ColumnType.Char, w, null);
     }
 
+    private ColumnDefinition ParseVarCharType()
+    {
+        Expect(TokenType.LeftParen);
+        var numToken = Expect(TokenType.NumberLiteral);
+        var w = int.Parse(numToken.Value);
+        Expect(TokenType.RightParen);
+        if (w <= 0)
+            throw ParseError("VARCHAR must have a positive length", numToken.Line, numToken.Column);
+        return new ColumnDefinition("", ColumnType.VarChar, w, null);
+    }
+
     private ColumnDefinition ParseDecimalType()
     {
         Expect(TokenType.LeftParen);
@@ -282,6 +293,7 @@ public sealed class SqlCommandParser : ICommandParser
         return t.Value.ToUpperInvariant() switch
         {
             "CHAR" => ParseCharType(),
+            "VARCHAR" => ParseVarCharType(),
             "INT" => new ColumnDefinition("", ColumnType.Int, null, null),
             "TINYINT" => new ColumnDefinition("", ColumnType.TinyInt, null, null),
             "BIGINT" => new ColumnDefinition("", ColumnType.BigInt, null, null),

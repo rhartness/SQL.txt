@@ -1,4 +1,4 @@
--- SQL.txt Sample: Create Wiki Database Schema (Phase 2: PK/FK)
+-- SQL.txt Sample: Create Wiki Database Schema (Phase 2: PK/FK, Phase 3: VARCHAR)
 
 CREATE TABLE User (
     Id CHAR(10) PRIMARY KEY,
@@ -20,7 +20,7 @@ CREATE TABLE Page (
 CREATE TABLE PageContent (
     Id CHAR(10) PRIMARY KEY,
     PageId CHAR(10),
-    Content CHAR(5000),
+    Content VARCHAR(5000),
     Version INT,
     CreatedById CHAR(10),
     CreatedAt CHAR(24),

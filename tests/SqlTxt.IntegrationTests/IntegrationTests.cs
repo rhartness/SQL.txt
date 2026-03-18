@@ -119,4 +119,50 @@ public class IntegrationTests
                 Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task Phase3_VarcharTable_FullCrud_Works()
+    {
+        var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName}", tempDir);
+            var dbPath = dir;
+
+            await engine.ExecuteAsync("CREATE TABLE Notes (Id CHAR(10) PRIMARY KEY, Title VARCHAR(100), Body VARCHAR(1000))", dbPath);
+            await engine.ExecuteAsync("INSERT INTO Notes (Id, Title, Body) VALUES ('1', 'First', 'Short body')", dbPath);
+            await engine.ExecuteAsync("INSERT INTO Notes (Id, Title, Body) VALUES ('2', 'Second Note', 'A longer body with more text')", dbPath);
+
+            var select1 = await engine.ExecuteQueryAsync("SELECT * FROM Notes", dbPath);
+            Assert.Equal(2, select1.QueryResult!.Rows.Count);
+            Assert.Equal("First", select1.QueryResult.Rows[0].GetValue("Title"));
+            Assert.Equal("Short body", select1.QueryResult.Rows[0].GetValue("Body"));
+            Assert.Equal("Second Note", select1.QueryResult.Rows[1].GetValue("Title"));
+
+            await engine.ExecuteAsync("UPDATE Notes SET Title = 'Updated', Body = 'New body' WHERE Id = '1'", dbPath);
+            var select2 = await engine.ExecuteQueryAsync("SELECT * FROM Notes WHERE Id = '1'", dbPath);
+            Assert.Single(select2.QueryResult!.Rows);
+            Assert.Equal("Updated", select2.QueryResult.Rows[0].GetValue("Title"));
+            Assert.Equal("New body", select2.QueryResult.Rows[0].GetValue("Body"));
+
+            await engine.ExecuteAsync("DELETE FROM Notes WHERE Id = '2'", dbPath);
+            var select3 = await engine.ExecuteQueryAsync("SELECT * FROM Notes", dbPath);
+            Assert.Single(select3.QueryResult!.Rows);
+
+            var dataFile = Path.Combine(dbPath, "Tables", "Notes", "Notes.txt");
+            Assert.True(File.Exists(dataFile));
+            var content = await File.ReadAllTextAsync(dataFile);
+            Assert.Contains("A|", content);
+            Assert.Contains("D|", content);
+            Assert.Contains(":Updated", content);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

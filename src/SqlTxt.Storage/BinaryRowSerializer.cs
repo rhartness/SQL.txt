@@ -25,6 +25,7 @@ public sealed class BinaryRowSerializer : IBinaryRowSerializer
         return col.Type switch
         {
             ColumnType.Char => col.Width ?? 0,
+            ColumnType.VarChar => col.Width ?? 0,
             ColumnType.Int => 4,
             ColumnType.TinyInt => 1,
             ColumnType.BigInt => 8,
@@ -72,6 +73,7 @@ public sealed class BinaryRowSerializer : IBinaryRowSerializer
         switch (col.Type)
         {
             case ColumnType.Char:
+            case ColumnType.VarChar:
                 var encoded = FieldCodec.Encode(value);
                 var truncated = FieldCodec.TruncateToWidth(encoded, colSize, warnings, tableName, col.Name);
                 var bytes = Encoding.ASCII.GetBytes(truncated.PadRight(colSize));

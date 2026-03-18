@@ -8,6 +8,9 @@ public enum ColumnType
     /// <summary>Fixed-width character string of specified length.</summary>
     Char,
 
+    /// <summary>Variable-length character string with maximum length.</summary>
+    VarChar,
+
     /// <summary>32-bit integer.</summary>
     Int,
 

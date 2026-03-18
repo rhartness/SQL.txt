@@ -101,4 +101,71 @@ public class RowSerializerTests
         Assert.Equal("1", outRow.GetValue("Id"));
         Assert.Equal("Alice", outRow.GetValue("Name"));
     }
+
+    [Fact]
+    public void VariableWidth_SerializeAndDeserialize_RoundTrips()
+    {
+        var table = new TableDefinition("Notes", new[]
+        {
+            new ColumnDefinition("Id", ColumnType.Char, 10),
+            new ColumnDefinition("Title", ColumnType.VarChar, 100),
+            new ColumnDefinition("Body", ColumnType.VarChar, 1000)
+        }, PrimaryKeyColumns: new[] { "Id" });
+        var row = new RowData(new Dictionary<string, string>
+        {
+            [TableDefinition.RowIdColumnName] = "1",
+            ["Id"] = "1",
+            ["Title"] = "Hello",
+            ["Body"] = "This is body text"
+        });
+        var ser = new VariableWidthRowSerializer();
+        var des = new VariableWidthRowDeserializer();
+
+        var s = ser.Serialize(row, table);
+        Assert.StartsWith("A|", s);
+        Assert.Contains("5:Hello", s);
+        Assert.Contains("17:This is body text", s);
+        var outRow = des.Deserialize(s, table, out var isActive);
+        Assert.True(isActive);
+        Assert.Equal("1", outRow.GetValue("Id"));
+        Assert.Equal("Hello", outRow.GetValue("Title"));
+        Assert.Equal("This is body text", outRow.GetValue("Body"));
+    }
+
+    [Fact]
+    public void VariableWidth_ValueWithPipe_RoundTrips()
+    {
+        var table = new TableDefinition("T", new[]
+        {
+            new ColumnDefinition("Id", ColumnType.Char, 5),
+            new ColumnDefinition("Text", ColumnType.VarChar, 50)
+        }, PrimaryKeyColumns: new[] { "Id" });
+        var row = new RowData(new Dictionary<string, string>
+        {
+            [TableDefinition.RowIdColumnName] = "1",
+            ["Id"] = "1",
+            ["Text"] = "a|b|c"
+        });
+        var ser = new VariableWidthRowSerializer();
+        var des = new VariableWidthRowDeserializer();
+
+        var s = ser.Serialize(row, table);
+        var outRow = des.Deserialize(s, table, out var isActive);
+        Assert.True(isActive);
+        Assert.Equal("a|b|c", outRow.GetValue("Text"));
+    }
+
+    [Fact]
+    public void FormatAware_VarcharTable_UsesVariableWidth()
+    {
+        var table = new TableDefinition("Notes", new[]
+        {
+            new ColumnDefinition("Id", ColumnType.Char, 10),
+            new ColumnDefinition("Title", ColumnType.VarChar, 100)
+        });
+        var row = new RowData(new Dictionary<string, string> { ["Id"] = "1", ["Title"] = "Hi" });
+        var ser = new FormatAwareRowSerializer();
+        var s = ser.Serialize(row, table);
+        Assert.Contains("2:Hi", s);
+    }
 }

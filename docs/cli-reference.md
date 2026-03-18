@@ -42,6 +42,7 @@ sqltxt exec --db <path> [--wasm] "<statement>"
 **Examples:**
 ```bash
 sqltxt exec --db ./WikiDb "CREATE TABLE User (Id CHAR(10), Name CHAR(50))"
+sqltxt exec --db ./WikiDb "CREATE TABLE Notes (Id CHAR(10), Title VARCHAR(100), Body VARCHAR(1000))"
 sqltxt exec --db ./WikiDb.wasmdb --wasm "INSERT INTO User (Id, Name) VALUES ('1', 'Alice')"
 ```
 

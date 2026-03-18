@@ -12,7 +12,7 @@ public sealed class Tokenizer
     {
         "CREATE", "DATABASE", "TABLE", "WITH", "INSERT", "INTO", "VALUES",
         "SELECT", "FROM", "WHERE", "UPDATE", "SET", "DELETE",
-        "CHAR", "INT", "TINYINT", "BIGINT", "BIT", "DECIMAL",
+        "CHAR", "VARCHAR", "INT", "TINYINT", "BIGINT", "BIT", "DECIMAL",
         "NUMBERFORMAT", "TEXTENCODING",
         "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "UNIQUE",
         "INDEX", "ON", "NOLOCK"

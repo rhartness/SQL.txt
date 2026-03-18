@@ -20,6 +20,7 @@ SQL.txt is for people who like to learn by doing, who enjoy poking around their 
 - **Three build types** — CLI executable, NuGet API DLL, installable Service (Phase 2)
 - **Async API** — All DB functions via async methods; supports concurrent API calls
 - **Phase 2 relational** — Primary keys, foreign keys, UNIQUE, indexes, sharding, reader-writer locks, rebalance
+- **Phase 3 variable-width** — VARCHAR(n), length-prefixed row format, per-table format version
 - **Structured progression** — Phased implementation from simple to relational engine
 - **.NET 8** — Modern C# with async/await support
 
@@ -85,8 +86,8 @@ SQL.txt is built in phases toward **100% SQL:2023 compliance per phase**: start 
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
 | **Phase 2** | Done | Indexes, PK/FK, constraints, relational metadata |
 | **Storage Abstraction** | Done | `--storage:text` \| `--storage:binary` at database creation |
-| **Phase 3** | Next | VARCHAR, variable-width fields, storage evolution; SQL:2023 T055/T056/T062/T081 |
-| **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 |
+| **Phase 3** | Done | VARCHAR, variable-width fields, storage evolution; SQL:2023 T055/T056/T062/T081 |
+| **Phase 4** | Next | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 |
 | **CTE Phase** | Planned | WITH clause, recursive CTE; SQL:2023 |
 | **Phase 5** | Planned | ALTER TABLE, transactions; SQL:2023 |
 | **Phase 6** | Planned | Views, stored procedures, functions; SQL:2023 |

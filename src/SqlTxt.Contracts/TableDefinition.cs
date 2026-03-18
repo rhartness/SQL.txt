@@ -31,6 +31,16 @@ public sealed record TableDefinition(
     public const int RowIdStorageWidth = 20;
 
     /// <summary>
+    /// Row format version: 1 = fixed-width only (Phase 1/2), 2 = mixed CHAR + VARCHAR (variable-width).
+    /// </summary>
+    public const int RowFormatVersionFixedWidth = 1;
+
+    /// <summary>
+    /// Row format version for tables with variable-width columns.
+    /// </summary>
+    public const int RowFormatVersionVariableWidth = 2;
+
+    /// <summary>
     /// Gets primary key columns, or empty if none.
     /// </summary>
     public IReadOnlyList<string> PrimaryKey => PrimaryKeyColumns ?? Array.Empty<string>();
@@ -49,4 +59,14 @@ public sealed record TableDefinition(
     /// Gets index definitions, or empty if none.
     /// </summary>
     public IReadOnlyList<IndexDefinition> Indexes => IndexDefinitions ?? Array.Empty<IndexDefinition>();
+
+    /// <summary>
+    /// True if the table has any variable-width (VARCHAR) column.
+    /// </summary>
+    public bool HasVariableWidthColumns => Columns.Any(c => c.IsVariableWidth);
+
+    /// <summary>
+    /// Row format version for this table: 2 if any VARCHAR column, else 1.
+    /// </summary>
+    public int RowFormatVersion => HasVariableWidthColumns ? RowFormatVersionVariableWidth : RowFormatVersionFixedWidth;
 }

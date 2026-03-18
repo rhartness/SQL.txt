@@ -57,7 +57,7 @@ public sealed class SchemaStore : ISchemaStore
 
     private static string SerializeSchema(TableDefinition table)
     {
-        var formatVersion = table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0 ? 2 : FormatVersion;
+        var formatVersion = table.RowFormatVersion;
         var lines = new List<string>
         {
             $"TABLE: {table.TableName}",
@@ -71,6 +71,7 @@ public sealed class SchemaStore : ISchemaStore
             var typeStr = col.Type switch
             {
                 ColumnType.Char => $"CHAR|{col.Width ?? 0}",
+                ColumnType.VarChar => $"VARCHAR|{col.Width ?? 0}",
                 ColumnType.Int => "INT",
                 ColumnType.TinyInt => "TINYINT",
                 ColumnType.BigInt => "BIGINT",
@@ -180,6 +181,10 @@ public sealed class SchemaStore : ISchemaStore
                         case "CHAR":
                             type = ColumnType.Char;
                             width = parts.Length > 3 && int.TryParse(parts[3], out var w) ? w : 0;
+                            break;
+                        case "VARCHAR":
+                            type = ColumnType.VarChar;
+                            width = parts.Length > 3 && int.TryParse(parts[3], out var vw) ? vw : 0;
                             break;
                         case "INT":
                             type = ColumnType.Int;

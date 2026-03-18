@@ -24,6 +24,7 @@ public sealed class BinaryRowDeserializer : IBinaryRowDeserializer
         return col.Type switch
         {
             ColumnType.Char => col.Width ?? 0,
+            ColumnType.VarChar => col.Width ?? 0,
             ColumnType.Int => 4,
             ColumnType.TinyInt => 1,
             ColumnType.BigInt => 8,
@@ -72,6 +73,7 @@ public sealed class BinaryRowDeserializer : IBinaryRowDeserializer
         return col.Type switch
         {
             ColumnType.Char => FieldCodec.Decode(Encoding.ASCII.GetString(data).TrimEnd()),
+            ColumnType.VarChar => FieldCodec.Decode(Encoding.ASCII.GetString(data).TrimEnd()),
             ColumnType.Int => data.Length >= 4 ? ReadInt32LittleEndian(data).ToString() : "0",
             ColumnType.TinyInt => data.Length >= 1 ? ((sbyte)data[0]).ToString() : "0",
             ColumnType.BigInt => data.Length >= 8 ? ReadInt64LittleEndian(data).ToString() : "0",

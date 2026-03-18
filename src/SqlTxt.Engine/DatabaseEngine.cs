@@ -34,8 +34,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
         _indexStore = indexStore ?? new IndexStore(_fs);
         _rowIdStore = rowIdStore ?? new RowIdSequenceStore(_fs);
 
-        var serializer = new FixedWidthRowSerializer();
-        var deserializer = new FixedWidthRowDeserializer();
+        var serializer = new FormatAwareRowSerializer();
+        var deserializer = new FormatAwareRowDeserializer();
         var schemaStore = new SchemaStore(_fs);
         _schemaStore = new CachingSchemaStore(schemaStore);
         _metadataStore = new MetadataStore(_fs);
