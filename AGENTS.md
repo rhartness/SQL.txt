@@ -15,8 +15,8 @@
 |-------------|--------|-------|
 | **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only; SQL:2023 subset |
-| **Phase 2** | Next | Indexes, PK/FK, constraints, STOC, configurable sharding (20MB default), rebalance API |
-| **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
+| **Phase 2** | Done | Indexes, PK/FK, constraints, STOC, configurable sharding (20MB default), rebalance API |
+| **Phase 3** | Next | VARCHAR, variable-width fields, storage evolution |
 | **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
 | **CTE Phase** | Planned | Common Table Expressions (WITH clause); non-recursive and recursive |
 | **Phase 5** | Planned | ALTER TABLE, transactions |
