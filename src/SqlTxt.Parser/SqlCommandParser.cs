@@ -79,6 +79,7 @@ public sealed class SqlCommandParser : ICommandParser
         IdentifierValidator.ValidateTableName(name, "Database");
         string? numberFormat = null;
         string? textEncoding = null;
+        long? defaultMaxShardSize = null;
 
         if (Peek().Type == TokenType.Keyword && Peek().Value.Equals("WITH", StringComparison.OrdinalIgnoreCase))
         {
@@ -88,11 +89,18 @@ public sealed class SqlCommandParser : ICommandParser
             {
                 var key = ExpectIdentifier().Name;
                 Expect(TokenType.Equals);
-                var val = Expect(TokenType.StringLiteral).Value;
-                if (key.Equals("numberFormat", StringComparison.OrdinalIgnoreCase))
-                    numberFormat = val;
-                else if (key.Equals("textEncoding", StringComparison.OrdinalIgnoreCase))
-                    textEncoding = val;
+                if (key.Equals("defaultMaxShardSize", StringComparison.OrdinalIgnoreCase))
+                {
+                    defaultMaxShardSize = long.Parse(Expect(TokenType.NumberLiteral).Value);
+                }
+                else
+                {
+                    var val = Expect(TokenType.StringLiteral).Value;
+                    if (key.Equals("numberFormat", StringComparison.OrdinalIgnoreCase))
+                        numberFormat = val;
+                    else if (key.Equals("textEncoding", StringComparison.OrdinalIgnoreCase))
+                        textEncoding = val;
+                }
 
                 if (Peek().Type == TokenType.RightParen)
                     break;
@@ -102,7 +110,7 @@ public sealed class SqlCommandParser : ICommandParser
         }
 
         OptionalSemicolon();
-        return new CreateDatabaseCommand(name, ".", numberFormat, textEncoding);
+        return new CreateDatabaseCommand(name, ".", numberFormat, textEncoding, defaultMaxShardSize);
     }
 
     private CreateTableCommand ParseCreateTable()
@@ -115,6 +123,7 @@ public sealed class SqlCommandParser : ICommandParser
         var primaryKeyColumns = new List<string>();
         var foreignKeyDefinitions = new List<ForeignKeyDefinition>();
         var uniqueConstraintColumns = new List<string>();
+        long? maxShardSize = null;
 
         while (true)
         {
@@ -190,12 +199,31 @@ public sealed class SqlCommandParser : ICommandParser
         }
 
         Expect(TokenType.RightParen);
+
+        if (Peek().Type == TokenType.Keyword && Peek().Value.Equals("WITH", StringComparison.OrdinalIgnoreCase))
+        {
+            Advance();
+            Expect(TokenType.LeftParen);
+            while (true)
+            {
+                var key = ExpectIdentifier().Name;
+                Expect(TokenType.Equals);
+                if (key.Equals("maxShardSize", StringComparison.OrdinalIgnoreCase))
+                    maxShardSize = long.Parse(Expect(TokenType.NumberLiteral).Value);
+
+                if (Peek().Type == TokenType.RightParen)
+                    break;
+                Expect(TokenType.Comma);
+            }
+            Expect(TokenType.RightParen);
+        }
+
         OptionalSemicolon();
 
         var table = new TableDefinition(
             tableName,
             columns,
-            MaxShardSize: null,
+            MaxShardSize: maxShardSize,
             PrimaryKeyColumns: primaryKeyColumns.Count > 0 ? primaryKeyColumns : null,
             ForeignKeyDefinitions: foreignKeyDefinitions.Count > 0 ? foreignKeyDefinitions : null,
             UniqueConstraintColumns: uniqueConstraintColumns.Count > 0 ? uniqueConstraintColumns : null);

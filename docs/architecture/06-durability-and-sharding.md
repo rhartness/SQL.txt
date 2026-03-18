@@ -6,19 +6,26 @@ Use **absolute best practices** for breaking up parts that might grow very large
 
 ## Sharding
 
+### Database Default: defaultMaxShardSize
+
+- **Default:** 20 MB (20,971,520 bytes) stored in `manifest.json` as `defaultMaxShardSize`
+- **Override:** `CREATE DATABASE ... WITH (defaultMaxShardSize=...)`; `CREATE TABLE ... WITH (maxShardSize=...)`
+- Per-table `MaxShardSize` overrides database default when specified
+
 ### Per-Table Parameter: MaxShardSize
 
-Each table has a configurable `MaxShardSize` (bytes or rows). When a data file exceeds this limit, the engine creates a new shard file.
+Each table uses `MaxShardSize` (from table definition or database default). When a data file exceeds this limit, the engine creates a new shard file.
 
 ### Sharding Strategy
 
-- **Table data files:** Shard when too large. Naming: `<TableName>_1.txt`, `<TableName>_2.txt`, etc., or `<TableName>_shard_001.txt`
-- **Indexes (Phase 2+):** Do **not** shard initially. Indexes reference shard file + row/offset.
+- **Table data files:** Shard when too large. Naming: `<TableName>_1.txt`, `<TableName>_2.txt`, etc.
+- **Split strategy:** When a shard exceeds limit, create new shard and move approximately half (or tail) of rows via stream-in/stream-out. **Do not** rewrite the entire table.
+- **Indexes (Phase 2+):** Format `Value|ShardId|_RowId`; Shard Table of Contents (STOC) tracks shard ranges. On split: incremental index update only (no full rebuild).
 - **Metadata:** Keep metadata files small; shard if they grow (e.g., `~System` table data)
 
-### Future Indexes
+### Rebalance API
 
-When indexes are added, they must know **file references** (which shard, which row). Index entries point to shard + position.
+`RebalanceTableAsync(tableName)` — Scans all shards, redistributes rows to balance shard sizes, updates indexes and STOC. Exposed via Engine, Service (`POST /rebalance/{tableName}`), and CLI (`sqltxt rebalance --db ./Db --table Users`). See [adr-007-sharding-parameters.md](../decisions/adr-007-sharding-parameters.md).
 
 ## Text Encoding
 

@@ -59,7 +59,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         if (cmd is CreateDatabaseCommand createDb)
         {
             var dbRoot = _fs.Combine(resolvedPath, createDb.DatabaseName);
-            _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding);
+            _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding, createDb.DefaultMaxShardSize);
             return new EngineResult(0);
         }
 
@@ -88,6 +88,29 @@ public sealed class DatabaseEngine : IDatabaseEngine
         }
 
         throw new ParseException($"Unsupported command type: {cmd.GetType().Name}");
+    }
+
+    public async Task<int> RebalanceTableAsync(string databasePath, string tableName, CancellationToken cancellationToken = default)
+    {
+        var resolvedPath = _fs.GetFullPath(databasePath);
+        await EnsureDatabaseExistsAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+
+        var table = await _schemaStore.ReadSchemaAsync(resolvedPath, tableName, cancellationToken).ConfigureAwait(false)
+            ?? throw new SchemaException($"Table '{tableName}' not found");
+
+        await using (await _lockManager.AcquireWriteLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false))
+        {
+            var warnings = new List<string>();
+            var (total, active, deleted) = await _tableDataStore.StreamTransformRowsAsync(
+                resolvedPath,
+                tableName,
+                r => r,
+                cancellationToken,
+                warnings).ConfigureAwait(false);
+
+            await _metadataStore.UpdateMetadataAsync(resolvedPath, tableName, total, active, deleted, cancellationToken).ConfigureAwait(false);
+            return active;
+        }
     }
 
     public async Task<EngineResult> ExecuteQueryAsync(string queryText, string databasePath, CancellationToken cancellationToken = default)
@@ -148,7 +171,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 {
                     var parent = Path.GetDirectoryName(currentDbPath) ?? currentDbPath;
                     var dbRoot = _fs.Combine(parent, createDb.DatabaseName);
-                    _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding);
+                    _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding, createDb.DefaultMaxShardSize);
                     currentDbPath = dbRoot;
                     totalExecuted++;
                     continue;
@@ -268,7 +291,9 @@ public sealed class DatabaseEngine : IDatabaseEngine
     {
         await EnsureDatabaseExistsAsync(databasePath, cancellationToken).ConfigureAwait(false);
 
-        var table = cmd.Table;
+        var dbDefault = await _dbCreator.GetDefaultMaxShardSizeAsync(databasePath, cancellationToken).ConfigureAwait(false);
+        var effectiveMaxShardSize = cmd.Table.MaxShardSize ?? dbDefault;
+        var table = cmd.Table with { MaxShardSize = effectiveMaxShardSize };
 
         foreach (var fk in table.ForeignKeys)
         {

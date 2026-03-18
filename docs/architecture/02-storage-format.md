@@ -51,12 +51,14 @@ Contains all properties specific to the database itself. It describes the databa
   "engineVersion": "0.1.0",
   "storageFormatVersion": 1,
   "numberFormat": "standard",
-  "textEncoding": "ascii"
+  "textEncoding": "ascii",
+  "defaultMaxShardSize": 20971520
 }
 ```
 
 - **numberFormat** — Optional; default `"standard"` (decimal `.`). Override for locale-specific numeric formatting.
 - **textEncoding** — Optional; only fixed-width encodings (each character = fixed bytes). No UTF-8. Default: ASCII or platform fixed-width.
+- **defaultMaxShardSize** — Optional; default 20 MB (20,971,520 bytes). Database-level default for table shard size. Overridable per table via `CREATE TABLE ... WITH (maxShardSize=...)`. See [06-durability-and-sharding.md](06-durability-and-sharding.md).
 
 ### Schema Location
 
@@ -70,9 +72,10 @@ One folder per table. Each table folder contains:
 | File | Purpose |
 |------|---------|
 | `<TableName>.txt` | Root data file (rows) |
-| `<TableName>_PK.txt` | Primary key index (Phase 2+) |
+| `<TableName>_STOC.txt` | Shard Table of Contents — one line per shard (Phase 2+); see [adr-008](../decisions/adr-008-index-shard-structure.md) |
+| `<TableName>_PK.txt` | Primary key index (Phase 2+); format: `Value\|ShardId\|_RowId` |
 | `<TableName>_FK_<LinkedTable>.txt` | Foreign key index for FK to LinkedTable (Phase 2+) |
-| `<TableName>_INX_<Col1>_<Col2>_<N>.txt` | Index on columns; N = increment if multiple indexes share same columns (Phase 2+) |
+| `<TableName>_INX_<Col1>_<Col2>_<N>.txt` | Index on columns; N = increment if multiple indexes share same columns (Phase 2+); format: `Value\|ShardId\|_RowId` |
 
 ### Schema and Metadata
 
@@ -112,7 +115,7 @@ One file per stored procedure or function. File name = object name. (Phase 6.)
 
 ## Sharding
 
-Per-table **MaxShardSize** parameter. When table data file exceeds this, create new shard: `<TableName>_1.txt`, `<TableName>_2.txt`, etc. Indexes (Phase 2+) reference shard + position. Do not shard indexes initially. See [06-durability-and-sharding.md](06-durability-and-sharding.md).
+Database-level **defaultMaxShardSize** (20 MB default) in manifest; per-table override via `MaxShardSize`. When table data file exceeds limit, create new shard: `<TableName>_1.txt`, `<TableName>_2.txt`, etc. Split strategy: stream half (or tail) to new shard; do not rewrite entire table. Indexes (Phase 2+) use `Value|ShardId|_RowId` format; STOC tracks shard ranges. See [06-durability-and-sharding.md](06-durability-and-sharding.md) and [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md).
 
 ## Versioning Strategy
 

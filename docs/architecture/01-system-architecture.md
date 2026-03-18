@@ -70,6 +70,11 @@ SqlTxt.Cli    SqlTxt.SampleApp  SqlTxt.Service  NuGet (SqlTxt)
 | `IRowSerializer` / `IRowDeserializer` | Row format handling |
 | `IDatabaseLockManager` | Lock coordination (Phase 1); `IDataLockManager` (Phase 2) |
 
+### Future Components
+
+- **Statistics (Phase 7):** Histogram storage, cardinality estimation, optimizer integration. Metadata slots reserved in ~System.
+- **Rebalance API:** `RebalanceTableAsync(tableName)` — redistributes rows across shards; exposed via Engine, Service (`POST /rebalance/{tableName}`), and CLI (`sqltxt rebalance --db ./Db --table Users`).
+
 ## Extensibility
 
 - New command types: add to Contracts, Parser, Engine
@@ -79,6 +84,7 @@ SqlTxt.Cli    SqlTxt.SampleApp  SqlTxt.Service  NuGet (SqlTxt)
 ## Reference
 
 - [02-storage-format.md](02-storage-format.md) — On-disk layout
+- [11-sql2023-mapping.md](11-sql2023-mapping.md) — SQL:2023 feature mapping
 - [03-sql-subset.md](03-sql-subset.md) — Supported syntax
 - [04-testing-strategy.md](04-testing-strategy.md) — Test approach
 - [07-api-and-deployment.md](07-api-and-deployment.md) — Build types, API

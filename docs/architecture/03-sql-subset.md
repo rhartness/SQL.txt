@@ -1,5 +1,7 @@
 # SQL Subset
 
+SQL.txt aligns with **SQL:2023** (ISO/IEC 9075-2:2023). See [11-sql2023-mapping.md](11-sql2023-mapping.md) for per-phase feature mapping.
+
 ## Phase 1 Supported Syntax
 
 | Statement | Example |
@@ -31,16 +33,23 @@
 
 ## Phase 2 Additions
 
-- `SELECT ... FROM table WITH (NOLOCK)` — Skip lock for read-only queries (faster)
+- **CREATE DATABASE:** `CREATE DATABASE name WITH (defaultMaxShardSize=20971520);` — Database-level shard size default (20 MB)
+- **CREATE TABLE:** `PRIMARY KEY` (column-level or table-level), `FOREIGN KEY (col) REFERENCES Table(col)`, `UNIQUE` (column-level or table-level); `WITH (maxShardSize=...)` for per-table override
+- **CREATE INDEX:** `CREATE INDEX IX_Name ON Table(Column);` and `CREATE UNIQUE INDEX ...`
+- **SELECT:** `SELECT ... FROM table WITH (NOLOCK)` — Skip lock for read-only queries (faster)
 
-## Phase 1 Exclusions
+## CTE Phase Additions
+
+- **WITH clause:** `WITH cte AS (SELECT ...) SELECT * FROM cte;` — Non-recursive Common Table Expressions
+- **Recursive CTE:** `WITH RECURSIVE cte AS (anchor UNION ALL recursive) SELECT * FROM cte;`
+
+## Phase 1 Exclusions (Phase 2 adds indexes, PK/FK)
 
 - Joins
 - ORDER BY, GROUP BY
 - Aggregates (COUNT, SUM, etc.)
 - Functions, arithmetic expressions
-- Transactions, concurrency
-- Indexes, PK/FK
+- Transactions
 - VARCHAR, ALTER TABLE
 
 ## Reserved Words (Phase 1)

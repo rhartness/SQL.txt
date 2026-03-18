@@ -23,7 +23,7 @@ alwaysApply: true
 
 ## Key Interfaces
 
-- `IDatabaseEngine` — Execute commands, open databases
+- `IDatabaseEngine` — Execute commands, open databases, RebalanceTableAsync
 - `ICommandParser` — Parse text to command objects
 - `ISchemaStore` — Schema read/write
 - `ITableDataStore` — Row data read/write
@@ -61,19 +61,23 @@ alwaysApply: true
 | Phase 2 | Next |
 | Phase 3 | Planned |
 | Phase 4 | Planned |
+| CTE Phase | Planned |
 | Phase 5 | Planned |
 | Phase 6 | Planned |
+| Phase 7 | Planned (Statistics) |
 
 **Current focus:** Phase 2. See [docs/plans/](docs/plans/).
+
+**Strategic:** SQL:2023 alignment per phase; configurable sharding (20MB default); rebalance API; Knuth-style efficiency; statistics-ready design.
 
 ## Storage Layout
 
 - Root folder = database name
-- `db/` — Database properties (manifest)
-- `Tables/` — User tables; each folder has `<TableName>.txt`, `_PK.txt`, `_FK_*.txt`, `_INX_*.txt`
+- `db/` — Database properties (manifest; defaultMaxShardSize 20MB)
+- `Tables/` — User tables; each folder has `<TableName>.txt`, `_STOC.txt`, `_PK.txt`, `_FK_*.txt`, `_INX_*.txt`
 - `~System/` — System metadata (prefix `~` = engine-managed)
 - `Views/`, `Procedures/`, `Functions/` — Phase 6 (views, stored procedures, functions)
 
 ## Reference
 
-See [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md) for full specification. See [docs/specifications/02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md) for post-Phase 3 roadmap. For performance and efficiency requirements, see [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md).
+See [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md) for full specification. See [docs/specifications/02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md) for post-Phase 3 roadmap. For performance and efficiency requirements, see [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md). SQL:2023 mapping: [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md).

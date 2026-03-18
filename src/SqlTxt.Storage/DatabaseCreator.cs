@@ -18,7 +18,8 @@ public sealed class DatabaseCreator
     /// <param name="databasePath">Full path to database root (folder containing db/, Tables/, ~System/).</param>
     /// <param name="numberFormat">Optional numeric format.</param>
     /// <param name="textEncoding">Optional text encoding.</param>
-    public void CreateDatabase(string databasePath, string? numberFormat = null, string? textEncoding = null)
+    /// <param name="defaultMaxShardSize">Optional database-level default max shard size in bytes (default 20 MB).</param>
+    public void CreateDatabase(string databasePath, string? numberFormat = null, string? textEncoding = null, long? defaultMaxShardSize = null)
     {
         var root = _fs.GetFullPath(databasePath);
         _fs.CreateDirectory(root);
@@ -35,17 +36,40 @@ public sealed class DatabaseCreator
         var schemasDir = _fs.Combine(systemDir, "schemas");
         _fs.CreateDirectory(schemasDir);
 
+        var effectiveDefault = defaultMaxShardSize ?? 20_971_520; // 20 MB default per ADR-007
         var manifest = new
         {
             engineVersion = "0.1.0",
             storageFormatVersion = 1,
             numberFormat = numberFormat ?? "standard",
-            textEncoding = textEncoding ?? "ascii"
+            textEncoding = textEncoding ?? "ascii",
+            defaultMaxShardSize = effectiveDefault
         };
 
         var manifestPath = _fs.Combine(dbDir, "manifest.json");
         var json = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true });
         _fs.WriteAllTextAsync(manifestPath, json).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Reads the default max shard size from the database manifest.
+    /// </summary>
+    /// <param name="databasePath">Path to database root.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Default max shard size in bytes, or null if not set (legacy database).</returns>
+    public async Task<long?> GetDefaultMaxShardSizeAsync(string databasePath, CancellationToken cancellationToken = default)
+    {
+        var dbDir = _fs.Combine(databasePath, "db");
+        var manifestPath = _fs.Combine(dbDir, "manifest.json");
+        if (!_fs.FileExists(manifestPath))
+            return null;
+
+        var json = await _fs.ReadAllTextAsync(manifestPath, cancellationToken).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("defaultMaxShardSize", out var prop) && prop.TryGetInt64(out var val))
+            return val;
+        return null;
     }
 
     /// <summary>

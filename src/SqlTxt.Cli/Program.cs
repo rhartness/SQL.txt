@@ -23,6 +23,7 @@ try
         "query" => await QueryAsync(argsList),
         "script" => await ScriptAsync(argsList),
         "inspect" => await InspectAsync(argsList),
+        "rebalance" => await RebalanceAsync(argsList),
         _ => UnknownCommand(command)
     };
 }
@@ -66,6 +67,7 @@ static void PrintUsage()
           sqltxt query --db <path> [--wasm] "<select>"   Execute SELECT and print results
           sqltxt script --db <path> [--wasm] <file>     Execute script file
           sqltxt inspect --db <path> [--wasm]           List tables and row counts
+          sqltxt rebalance --db <path> --table <name>   Rebalance shards for a table
 
         Options:
           --wasm  Use WASM-compatible in-memory storage (persisted to .wasmdb file)
@@ -194,6 +196,29 @@ static async Task<int> ScriptAsync(List<string> args)
     foreach (var w in result.Warnings)
         Console.Error.WriteLine($"Warning: {w}");
     Console.WriteLine($"Executed {result.StatementsExecuted} statements");
+    return 0;
+}
+
+static async Task<int> RebalanceAsync(List<string> args)
+{
+    var (dbPath, useWasm, remaining) = ExtractDbPathAndWasm(args);
+    if (dbPath == null)
+    {
+        Console.Error.WriteLine("rebalance requires --db <path>");
+        return 1;
+    }
+
+    var tableIdx = remaining.IndexOf("--table");
+    if (tableIdx < 0 || tableIdx + 1 >= remaining.Count)
+    {
+        Console.Error.WriteLine("rebalance requires --table <name>");
+        return 1;
+    }
+
+    var tableName = remaining[tableIdx + 1];
+    var (engine, enginePath) = CreateEngineAndPath(dbPath, useWasm);
+    var count = await engine.RebalanceTableAsync(enginePath, tableName);
+    Console.WriteLine($"Rebalanced table {tableName}: {count} rows processed.");
     return 0;
 }
 

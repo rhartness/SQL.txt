@@ -44,7 +44,11 @@ Accepted
 
 ### 8. Sharding
 
-**Decision:** All data files (table data, metadata, indexes when added) must be **shardable** as they grow. Per-table parameter: `MaxShardSize`. When a data file exceeds this, create new shard. Indexes (Phase 2+) reference shard files. Do not shard indexes initially; shard table data only.
+**Decision:** All data files (table data, metadata, indexes when added) must be **shardable** as they grow. Database-level `defaultMaxShardSize` (20 MB default) in manifest; per-table override: `MaxShardSize`. When a data file exceeds this, create new shard. Split strategy: stream half/tail to new shard; do not rewrite entire table. Indexes (Phase 2+) use `Value|ShardId|_RowId` format; STOC tracks shard ranges. Do not shard indexes initially; shard table data only. See [adr-007](adr-007-sharding-parameters.md) and [adr-008](adr-008-index-shard-structure.md).
+
+### 8a. Efficiency (Knuth-Style)
+
+**Decision:** Never implement the most straightforward approach for data-focused tasks. Design for speed and efficiency: choose algorithms (e.g., binary search, incremental updates) and structures (e.g., STOC for indexes) that scale well.
 
 ### 9. Testing
 

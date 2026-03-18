@@ -83,6 +83,8 @@ public sealed class SchemaStore : ISchemaStore
             lines.Add($"{i + 1}|{col.Name}|{typeStr}{pk}{uq}");
         }
 
+        if (table.MaxShardSize.HasValue)
+            lines.Add("MAX_SHARD_SIZE: " + table.MaxShardSize.Value);
         if (table.PrimaryKey.Count > 0)
             lines.Add("PRIMARY_KEY: " + string.Join(",", table.PrimaryKey));
         foreach (var fk in table.ForeignKeys)
@@ -103,10 +105,18 @@ public sealed class SchemaStore : ISchemaStore
         var foreignKeyDefinitions = new List<ForeignKeyDefinition>();
         var uniqueConstraintColumns = new List<string>();
         var indexDefinitions = new List<IndexDefinition>();
+        long? maxShardSize = null;
         var inColumns = false;
 
         foreach (var line in lines)
         {
+            if (line.StartsWith("MAX_SHARD_SIZE:"))
+            {
+                var val = line["MAX_SHARD_SIZE:".Length..].Trim();
+                if (long.TryParse(val, out var ms))
+                    maxShardSize = ms;
+                continue;
+            }
             if (line.StartsWith("COLUMNS:"))
             {
                 inColumns = true;
@@ -202,7 +212,7 @@ public sealed class SchemaStore : ISchemaStore
         return new TableDefinition(
             tableName,
             columns,
-            MaxShardSize: null,
+            MaxShardSize: maxShardSize,
             PrimaryKeyColumns: primaryKeyColumns.Count > 0 ? primaryKeyColumns : null,
             ForeignKeyDefinitions: foreignKeyDefinitions.Count > 0 ? foreignKeyDefinitions : null,
             UniqueConstraintColumns: uniqueConstraintColumns.Count > 0 ? uniqueConstraintColumns : null,

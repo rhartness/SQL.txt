@@ -28,7 +28,10 @@ The project has two goals:
 * Structured progression from simple engine to more capable relational engine
 * Implemented in phases with strict scope boundaries
 * Query optimization sophistication (Baked in, but scale up capability with phases)
-* **Shardable files** — With each phase, use absolute best practices for breaking up parts that might grow very large. Table data, metadata, indexes, multi-width field files must be shardable. Per-table MaxShardSize parameter.
+* **Shardable files** — With each phase, use absolute best practices for breaking up parts that might grow very large. Table data, metadata, indexes, multi-width field files must be shardable. Database default `defaultMaxShardSize` (20 MB); per-table `MaxShardSize` override. Rebalance API for shard redistribution.
+* **SQL:2023 alignment** — Each phase implements the applicable subset of ISO/IEC 9075-2:2023. See `docs/architecture/11-sql2023-mapping.md`.
+* **Knuth-style efficiency** — Never implement the most straightforward approach for data-focused tasks; design for speed and efficiency.
+* **Statistics-ready design** — Phase 7 will add CREATE STATISTICS, histograms; metadata slots reserved in ~System for future implementation.
 
 ### Non-Goals for Initial Releases
 
@@ -46,9 +49,14 @@ The project has two goals:
 The project will be built in **stages**:
 
 * **Stage 0:** Solution scaffolding, architecture, specifications, Cursor-ready prompts, test foundation
-* **Phase 1:** Core engine with schema creation, metadata storage, simple parser, single-table CRUD, fixed-width fields; async API; NuGet packaging; basic locking
-* **Phase 2:** Indexes, PK/FK, constraints, relational metadata; full lock manager; WITH (NOLOCK); installable Service
+* **Phase 1:** Core engine with schema creation, metadata storage, simple parser, single-table CRUD, fixed-width fields; async API; NuGet packaging; basic locking; SQL:2023 subset
+* **Phase 2:** Indexes, PK/FK, constraints, relational metadata; STOC; configurable sharding (20MB default); full lock manager; WITH (NOLOCK); installable Service
 * **Phase 3:** Variable-width fields (`VARCHAR`), storage evolution, extended parsing and validation
+* **Phase 4:** JOINs, aggregates, ORDER BY, GROUP BY, subqueries
+* **CTE Phase:** Common Table Expressions (WITH clause); non-recursive and recursive
+* **Phase 5:** ALTER TABLE, transactions
+* **Phase 6:** Views, stored procedures, functions
+* **Phase 7:** Statistics (CREATE STATISTICS, histograms, cardinality estimation)
 
 ---
 

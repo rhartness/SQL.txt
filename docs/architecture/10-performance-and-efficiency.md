@@ -4,6 +4,10 @@
 
 SQL.txt prioritizes **speed**, **memory efficiency**, and **durability** alongside correctness. For each feature and I/O path, implementations should minimize I/O, avoid unnecessary memory allocation, and ensure atomic writes. Breaking conventional coding patterns is acceptable when it yields measurable gains in these areas.
 
+### Knuth-Style Principle
+
+Never implement the most straightforward approach for data-focused tasks. Think like a data or software scientist: structure all data management, building, linking, searching, and operations for maximum efficiency. Design for speed and efficiency from the start—choose algorithms and structures (e.g., binary search, incremental updates, STOC for indexes) that scale well.
+
 ## Principles
 
 ### Speed
@@ -63,6 +67,11 @@ Future interface changes to support efficiency:
 
 - **IFileSystemAccessor**: Add `OpenReadStreamAsync`, `OpenWriteStreamAsync`, or `ReadLinesAsync` (streaming `IAsyncEnumerable<string>`) for large-file scenarios.
 - **ITableDataStore**: Ensure `ReadRowsAsync` uses true streaming internally (line-by-line); consider `StreamRowsAsync` if a different contract is needed.
+
+## Index and Statistics Design
+
+- **Index STOC:** Shard Table of Contents enables O(affected rows) maintenance on shard split; avoid full index rebuild. See [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md).
+- **Statistics-ready:** Index format (sorted) and ~System metadata slots reserved for Phase 7 statistics. See [adr-006-statistics-design.md](../decisions/adr-006-statistics-design.md).
 
 ## Reference
 

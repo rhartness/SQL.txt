@@ -14,12 +14,14 @@
 | Stage/Phase | Status | Scope |
 |-------------|--------|-------|
 | **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
-| **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
-| **Phase 2** | Next | Indexes, PK/FK, constraints, relational metadata |
+| **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only; SQL:2023 subset |
+| **Phase 2** | Next | Indexes, PK/FK, constraints, STOC, configurable sharding (20MB default), rebalance API |
 | **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
 | **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
+| **CTE Phase** | Planned | Common Table Expressions (WITH clause); non-recursive and recursive |
 | **Phase 5** | Planned | ALTER TABLE, transactions |
 | **Phase 6** | Planned | Views, stored procedures, functions |
+| **Phase 7** | Planned | Statistics (CREATE STATISTICS, histograms, cardinality estimation) |
 
 **Current focus:** Phase 2. Use [docs/plans/Phase2_Implementation_Plan.md](docs/plans/Phase2_Implementation_Plan.md) when available. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
 
@@ -38,9 +40,9 @@
 - "Build the complete SQL.txt engine."
 - "Implement everything in Phase 1."
 
-## Efficiency Requirements
+## Efficiency Requirements (Knuth-Style)
 
-For each new feature, consider **speed** (minimal I/O, buffering) and **memory** (streaming vs full load). For large data, prefer streaming, copy-on-write, and atomic renames. Breaking coding conventions is acceptable when it yields faster, more efficient, or more durable code.
+Never implement the most straightforward approach for data-focused tasks. Think like a data or software scientist: structure all data management, building, linking, searching, and operations for maximum efficiency. For each new feature, consider **speed** (minimal I/O, buffering) and **memory** (streaming vs full load). For large data, prefer streaming, copy-on-write, and atomic renames. Breaking coding conventions is acceptable when it yields faster, more efficient, or more durable code.
 
 - **Speed:** Minimize I/O; use streaming over full-file loads when files may grow large.
 - **Memory:** Prefer O(1) or O(row) memory; avoid loading entire tables when streaming is possible.
@@ -64,7 +66,9 @@ See [docs/architecture/05-documentation-standards.md](docs/architecture/05-docum
 - **Post-Phase 3 features:** [docs/specifications/02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md)
 - **Phase 1 prompts:** [docs/prompts/phase-1-cursor-prompts.md](docs/prompts/phase-1-cursor-prompts.md)
 - **Architecture:** [docs/architecture/](docs/architecture/)
-- **Storage format:** [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md) — db/, Tables/, ~System/, sharding
+- **Storage format:** [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md) — db/, Tables/, ~System/, sharding, STOC
+- **SQL:2023 mapping:** [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md)
+- **Statistics design:** [docs/decisions/adr-006-statistics-design.md](docs/decisions/adr-006-statistics-design.md)
 - **Durability/sharding:** [docs/architecture/06-durability-and-sharding.md](docs/architecture/06-durability-and-sharding.md)
 - **API/deployment:** [docs/architecture/07-api-and-deployment.md](docs/architecture/07-api-and-deployment.md) — CLI, Service, NuGet
 - **Concurrency:** [docs/architecture/08-concurrency-and-locking.md](docs/architecture/08-concurrency-and-locking.md) — locking, NOLOCK

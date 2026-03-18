@@ -10,7 +10,7 @@
 
 - Human-readable on-disk storage
 - Lightweight local embedded usage
-- Phased implementation (Stage 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6)
+- Phased implementation (Stage 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → CTE → Phase 5 → Phase 6 → Phase 7)
 - Single-table CRUD in Phase 1
 - Fixed-width fields (CHAR) in Phase 1
 - Indexes, PK/FK in Phase 2
@@ -18,6 +18,10 @@
 - JOINs, aggregates, ORDER BY, GROUP BY, subqueries in Phase 4
 - ALTER TABLE, transactions in Phase 5
 - Views, stored procedures, functions in Phase 6
+- CTE (Common Table Expressions) — dedicated phase after Phase 4
+- Statistics (SQL Server–style) in Phase 7
+- SQL:2023 alignment — each phase implements applicable standard features
+- Configurable sharding — database default 20MB; rebalance API
 
 ### Out of Scope (Initial Releases)
 
@@ -33,12 +37,14 @@
 | Phase | Deliverables |
 |-------|--------------|
 | Stage 0 | Solution scaffolding, design docs, Cursor guidance |
-| Phase 1 | CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width only |
-| Phase 2 | Indexes, PK/FK, constraints, relational metadata |
+| Phase 1 | CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width only; SQL:2023 subset |
+| Phase 2 | Indexes, PK/FK, constraints, relational metadata; STOC; configurable sharding (20MB default) |
 | Phase 3 | VARCHAR, variable-width fields, storage evolution |
 | Phase 4 | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
+| CTE Phase | Common Table Expressions (WITH clause); non-recursive and recursive |
 | Phase 5 | ALTER TABLE, transactions |
 | Phase 6 | Views, stored procedures, functions |
+| Phase 7 | Statistics (CREATE STATISTICS, histograms, cardinality estimation) |
 
 ## User Stories
 

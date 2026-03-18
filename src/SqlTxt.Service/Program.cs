@@ -27,6 +27,13 @@ app.MapPost("/query", async (QueryRequest req, IDatabaseEngine engine, IConfigur
         result.Warnings));
 });
 
+app.MapPost("/rebalance", async (RebalanceRequest req, IDatabaseEngine engine, IConfiguration config) =>
+{
+    var dbPath = req.DatabasePath ?? config["SqlTxt:DatabasePath"] ?? ".";
+    var count = await engine.RebalanceTableAsync(dbPath, req.TableName);
+    return Results.Ok(new RebalanceResponse(count));
+});
+
 await app.RunAsync();
 
 public record ExecRequest(string Sql, string? DatabasePath = null);
@@ -34,5 +41,8 @@ public record ExecResponse(int RowsAffected, IReadOnlyList<string>? Warnings);
 
 public record QueryRequest(string Sql, string? DatabasePath = null);
 public record QueryResponse(IReadOnlyList<string> ColumnNames, IReadOnlyList<IReadOnlyDictionary<string, string>> Rows, IReadOnlyList<string>? Warnings);
+
+public record RebalanceRequest(string TableName, string? DatabasePath = null);
+public record RebalanceResponse(int RowsProcessed);
 
 public partial class Program { }

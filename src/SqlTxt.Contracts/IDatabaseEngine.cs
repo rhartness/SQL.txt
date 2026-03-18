@@ -39,6 +39,15 @@ public interface IDatabaseEngine
     Task<ExecuteScriptResult> ExecuteScriptAsync(string scriptText, string databasePath, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Rebalances shards for a table by redistributing rows to balance shard sizes.
+    /// </summary>
+    /// <param name="databasePath">Path to database root.</param>
+    /// <param name="tableName">Table to rebalance.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Number of rows processed.</returns>
+    Task<int> RebalanceTableAsync(string databasePath, string tableName, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Builds the sample Wiki database at the given path.
     /// </summary>
     /// <param name="databasePath">Path where WikiDb folder will be created (parent directory).</param>

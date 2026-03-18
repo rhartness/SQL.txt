@@ -5,6 +5,7 @@ This plan implements the **Phase 1** minimal readable database engine: CREATE DA
 **Reference:** [docs/specifications/01_Initial_Creation.md](../specifications/01_Initial_Creation.md) (Phase 1 section)  
 **Cursor prompts:** [docs/prompts/phase-1-cursor-prompts.md](../prompts/phase-1-cursor-prompts.md)  
 **Storage format:** [docs/architecture/02-storage-format.md](../architecture/02-storage-format.md)  
+**SQL:2023 mapping:** [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)  
 **Design decisions:** [docs/decisions/adr-003-phase1-design-decisions.md](../decisions/adr-003-phase1-design-decisions.md)  
 **Durability/sharding:** [docs/architecture/06-durability-and-sharding.md](../architecture/06-durability-and-sharding.md)  
 **API/deployment:** [docs/architecture/07-api-and-deployment.md](../architecture/07-api-and-deployment.md)  
@@ -29,7 +30,9 @@ This plan implements the **Phase 1** minimal readable database engine: CREATE DA
 - Data types: CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL
 - NumberFormat and TextEncoding parameters at CREATE DATABASE
 - Fixed-width encodings only
-- Sharding: per-table MaxShardSize; shard data files when too large
+- Sharding: per-table MaxShardSize; database default defaultMaxShardSize (20 MB) per [adr-007](../decisions/adr-007-sharding-parameters.md); shard data files when too large
+- Efficiency: Knuth-style — design for speed and efficiency; avoid straightforward-but-slow approaches
+- SQL:2023: Phase 1 implements applicable subset per [11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)
 - Test-first; full unit coverage
 - Error handling: file name, row number, character position
 
@@ -225,6 +228,17 @@ Improve robustness and error handling.
 - [x] README and docs updated
 
 **Phase 1 is complete.** (Wave 8.5 golden file tests are optional and deferred.)
+
+---
+
+## Back-Plan: Strategic Updates (Post-Phase 1)
+
+Per ADR-007, ADR-008, and strategic updates:
+
+- [x] **BP.1** Add `defaultMaxShardSize` (20 MB) to manifest schema; DatabaseCreator writes it
+- [x] **BP.2** SchemaStore: when creating table, use `table.MaxShardSize ?? db.DefaultMaxShardSize` (Engine resolves; schema persists)
+- [x] **BP.3** Parser: parse `CREATE DATABASE ... WITH (defaultMaxShardSize=...)`; `CREATE TABLE ... WITH (maxShardSize=...)`
+- [x] **BP.4** CreateDatabaseCommand: add `DefaultMaxShardSize` property
 
 ---
 

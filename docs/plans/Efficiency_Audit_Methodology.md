@@ -13,6 +13,14 @@ Audit the following:
 3. **Parser tokenization and parsing paths** — Token materialization, string handling
 4. **String allocations in hot paths** — `string.Join`, `StringBuilder`, `string + string` in loops
 
+## Knuth-Style Principle
+
+Never implement the most straightforward approach for data-focused tasks. For each data structure, algorithm, or I/O path, consider:
+
+- **Algorithmic complexity:** O(log n) over O(n) when applicable (e.g., binary search on sorted index)
+- **Incremental updates:** On shard split, update only affected index entries; avoid full rebuild
+- **Index structure:** STOC (Shard Table of Contents) for efficient multi-shard index maintenance per [adr-008](../decisions/adr-008-index-shard-structure.md)
+
 ## Checklist per Component
 
 For each component that performs I/O or allocates large structures:
@@ -24,6 +32,7 @@ For each component that performs I/O or allocates large structures:
 | For writes: Is it atomic? | Does it use temp file + rename? |
 | For UPDATE/DELETE: Could it use stream-in/stream-out? | Instead of full materialization |
 | Does it respect sharding? | Multi-shard read/write when applicable |
+| Knuth-style? | Is the algorithm/structure optimal for scale? |
 
 ## Prioritization
 

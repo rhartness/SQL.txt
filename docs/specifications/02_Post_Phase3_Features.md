@@ -13,11 +13,14 @@ This document extends the SQL.txt roadmap beyond Phase 3 (VARCHAR, variable-widt
 | **ORDER BY** | 4 | Sort results by column(s); ASC/DESC |
 | **GROUP BY** | 4 | Group rows; optional HAVING |
 | **Subqueries** | 4 | IN (list), EXISTS, scalar in SELECT/WHERE |
+| **CTE (WITH clause)** | CTE | Common Table Expressions; non-recursive and recursive |
+| **Rebalance API** | 2/3 | RebalanceTableAsync; redistributes rows across shards |
 | **ALTER TABLE** | 5 | ADD COLUMN, DROP COLUMN, RENAME COLUMN/TABLE |
 | **Transactions** | 5 | BEGIN TRANSACTION, COMMIT, ROLLBACK |
 | **Views** | 6 | CREATE VIEW; stored SELECT definitions |
 | **Stored Procedures** | 6 | CREATE PROCEDURE, EXEC; multi-statement |
 | **Functions** | 6 | CREATE FUNCTION; scalar user-defined functions |
+| **Statistics** | 7 | CREATE STATISTICS, histograms, cardinality estimation |
 
 ---
 
