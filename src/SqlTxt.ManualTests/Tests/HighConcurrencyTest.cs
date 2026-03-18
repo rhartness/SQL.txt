@@ -45,7 +45,7 @@ public static class HighConcurrencyTest
                         try
                         {
                             await engine.ExecuteAsync(
-                                $"INSERT INTO User (Id, Username, Email, CreatedAt) VALUES ('{idBase}', 'user{idBase}', 'u{idBase}@test.local', '2026-03-17T12:00:00Z')",
+                                "INSERT INTO User (Id, Username, Email, CreatedAt) VALUES ('" + idBase + "', 'user" + idBase + "', 'u" + idBase + "@test.local', '2026-03-17T12:00:00Z')",
                                 wikiDbPath, cancellationToken).ConfigureAwait(false);
                             Interlocked.Increment(ref successCount);
                         }
@@ -58,7 +58,7 @@ public static class HighConcurrencyTest
                         try
                         {
                             await engine.ExecuteAsync(
-                                $"INSERT INTO Page (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES ('{idBase}', 'Page {idBase}', 'page-{idBase}', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')",
+                                "INSERT INTO Page (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES ('" + idBase + "', 'Page " + idBase + "', 'page-" + idBase + "', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')",
                                 wikiDbPath, cancellationToken).ConfigureAwait(false);
                             Interlocked.Increment(ref successCount);
                         }
@@ -71,7 +71,7 @@ public static class HighConcurrencyTest
                         try
                         {
                             await engine.ExecuteAsync(
-                                $"INSERT INTO PageContent (Id, PageId, Content, Version, CreatedById, CreatedAt) VALUES ('{idBase}', '{idBase}', 'Content {idBase}', 1, '1', '2026-03-17T12:00:00Z')",
+                                "INSERT INTO PageContent (Id, PageId, Content, Version, CreatedById, CreatedAt) VALUES ('" + idBase + "', '" + idBase + "', 'Content " + idBase + "', 1, '1', '2026-03-17T12:00:00Z')",
                                 wikiDbPath, cancellationToken).ConfigureAwait(false);
                             Interlocked.Increment(ref successCount);
                         }
@@ -92,11 +92,10 @@ public static class HighConcurrencyTest
                     for (var i = 0; i < opsPerThread; i++)
                     {
                         var idBase = 20000 + (threadId * 1000) + i;
+                        var userSql = "UPDATE User SET Username = 'u" + idBase + "' WHERE Id = '1'";
                         try
                         {
-                            await engine.ExecuteAsync(
-                                $"UPDATE User SET Username = 'updated{idBase}' WHERE Id = '1'",
-                                wikiDbPath, cancellationToken).ConfigureAwait(false);
+                            await engine.ExecuteAsync(userSql, wikiDbPath, cancellationToken).ConfigureAwait(false);
                             Interlocked.Increment(ref successCount);
                         }
                         catch (Exception ex)
@@ -105,11 +104,10 @@ public static class HighConcurrencyTest
                             lock (lockObj) { exceptions.Add($"Update User {idBase}: {ex.Message}"); }
                         }
 
+                        var pageSql = "UPDATE Page SET Title = 'T" + idBase + "' WHERE Id = '1'";
                         try
                         {
-                            await engine.ExecuteAsync(
-                                $"UPDATE Page SET Title = 'Updated {idBase}' WHERE Id = '1'",
-                                wikiDbPath, cancellationToken).ConfigureAwait(false);
+                            await engine.ExecuteAsync(pageSql, wikiDbPath, cancellationToken).ConfigureAwait(false);
                             Interlocked.Increment(ref successCount);
                         }
                         catch (Exception ex)
@@ -132,7 +130,7 @@ public static class HighConcurrencyTest
                         try
                         {
                             await engine.ExecuteAsync(
-                                $"DELETE FROM PageContent WHERE Id = '{idBase}'",
+                                "DELETE FROM PageContent WHERE Id = '" + idBase + "'",
                                 wikiDbPath, cancellationToken).ConfigureAwait(false);
                             Interlocked.Increment(ref successCount);
                         }

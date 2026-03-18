@@ -11,7 +11,7 @@ namespace SqlTxt.Engine;
 /// </summary>
 public sealed class DatabaseEngine : IDatabaseEngine
 {
-    private readonly ICommandParser _parser;
+    private readonly ICommandParser? _parser;
     private readonly IDatabaseLockManager _lockManager;
     private readonly Contracts.IFileSystemAccessor _fs;
     private readonly DatabaseCreator _dbCreator;
@@ -28,7 +28,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         IIndexStore? indexStore = null,
         IRowIdSequenceStore? rowIdStore = null)
     {
-        _parser = parser ?? new SqlCommandParser();
+        _parser = parser;
         _lockManager = lockManager ?? new DatabaseLockManager();
         _fs = fs ?? new FileSystemAccessor();
         _indexStore = indexStore ?? new IndexStore(_fs);
@@ -49,7 +49,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
         object cmd;
         try
         {
-            cmd = _parser.Parse(commandText);
+            var parser = _parser ?? new SqlCommandParser();
+            cmd = parser.Parse(commandText);
         }
         catch (ParseException)
         {
@@ -120,7 +121,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
         object cmd;
         try
         {
-            cmd = _parser.Parse(queryText);
+            var parser = _parser ?? new SqlCommandParser();
+            cmd = parser.Parse(queryText);
         }
         catch (ParseException)
         {
@@ -165,7 +167,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 if (string.IsNullOrWhiteSpace(trimmed))
                     continue;
 
-                var cmd = _parser.Parse(trimmed);
+                var parser = _parser ?? new SqlCommandParser();
+                var cmd = parser.Parse(trimmed);
 
                 if (cmd is CreateDatabaseCommand createDb)
                 {

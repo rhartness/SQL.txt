@@ -40,6 +40,8 @@
 - "Build the complete SQL.txt engine."
 - "Implement everything in Phase 1."
 
+When generating plan documents, consider asking: "Do you want specific manual tests generated for this feature?" Manual tests live in [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests) and can be extended per feature.
+
 ## Efficiency Requirements (Knuth-Style)
 
 Never implement the most straightforward approach for data-focused tasks. Think like a data or software scientist: structure all data management, building, linking, searching, and operations for maximum efficiency. For each new feature, consider **speed** (minimal I/O, buffering) and **memory** (streaming vs full load). For large data, prefer streaming, copy-on-write, and atomic renames. Breaking coding conventions is acceptable when it yields faster, more efficient, or more durable code.
@@ -88,6 +90,7 @@ See [docs/architecture/05-documentation-standards.md](docs/architecture/05-docum
 - `src/SqlTxt.Parser` — SQL-like parsing
 - `src/SqlTxt.Engine` — Execution layer
 - `src/SqlTxt.Cli` — Command-line tool
+- `src/SqlTxt.ManualTests` — Manual tests (concurrency, sharding, performance)
 - `src/SqlTxt.SampleApp` — Consumer example
 - `tests/` — Unit and integration tests
 
