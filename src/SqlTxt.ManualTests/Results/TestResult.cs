@@ -11,6 +11,7 @@ namespace SqlTxt.ManualTests.Results;
 /// <param name="FailureCount">Failed operations.</param>
 /// <param name="Exceptions">Exception messages collected.</param>
 /// <param name="Details">Additional details (e.g., query timings).</param>
+/// <param name="StorageType">Storage backend used: "text", "binary", or null when not applicable.</param>
 public sealed record TestResult(
     string TestName,
     bool Passed,
@@ -19,4 +20,5 @@ public sealed record TestResult(
     int SuccessCount,
     int FailureCount,
     IReadOnlyList<string> Exceptions,
-    IReadOnlyDictionary<string, object>? Details = null);
+    IReadOnlyDictionary<string, object>? Details = null,
+    string? StorageType = null);

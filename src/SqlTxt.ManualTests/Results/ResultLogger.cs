@@ -36,7 +36,8 @@ public sealed class ResultLogger : IDisposable
     public void LogResult(TestResult result)
     {
         var status = result.Passed ? "PASSED" : "FAILED";
-        Log($"--- {result.TestName} ---");
+        var storageLabel = result.StorageType is not null ? $" [{result.StorageType}]" : "";
+        Log($"--- {result.TestName}{storageLabel} ---");
         Log($"Status: {status}");
         Log($"Duration: {result.Duration.TotalMilliseconds:F2} ms");
         Log($"Operations: {result.OperationsCount} total, {result.SuccessCount} success, {result.FailureCount} failed");
@@ -54,6 +55,40 @@ public sealed class ResultLogger : IDisposable
                 Log($"  {key}: {value}");
         }
 
+        Log(string.Empty);
+    }
+
+    /// <summary>
+    /// Logs a comparison table of test results across storage types (text vs binary).
+    /// </summary>
+    public void LogComparisonTable(IReadOnlyList<TestResult> results)
+    {
+        if (results.Count == 0) return;
+
+        const int colTest = 24;
+        const int colStorage = 10;
+        const int colStatus = 8;
+        const int colDuration = 14;
+        const int colOps = 10;
+        const int colSuccess = 10;
+        const int colFail = 8;
+
+        var header = $"{"Test",-colTest} {"Storage",-colStorage} {"Status",-colStatus} {"Duration(ms)",-colDuration} {"Ops",-colOps} {"Success",-colSuccess} {"Fail",-colFail}";
+        var separator = new string('-', colTest + colStorage + colStatus + colDuration + colOps + colSuccess + colFail + 6);
+
+        Log("=== Results Comparison (text vs binary) ===");
+        Log(header);
+        Log(separator);
+
+        foreach (var r in results)
+        {
+            var storage = r.StorageType ?? "-";
+            var status = r.Passed ? "PASS" : "FAIL";
+            var line = $"{r.TestName,-colTest} {storage,-colStorage} {status,-colStatus} {r.Duration.TotalMilliseconds,12:F2} {r.OperationsCount,8} {r.SuccessCount,8} {r.FailureCount,6}";
+            Log(line);
+        }
+
+        Log(separator);
         Log(string.Empty);
     }
 

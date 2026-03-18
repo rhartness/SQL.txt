@@ -80,6 +80,7 @@ public sealed class SqlCommandParser : ICommandParser
         string? numberFormat = null;
         string? textEncoding = null;
         long? defaultMaxShardSize = null;
+        string? storageBackend = null;
 
         if (Peek().Type == TokenType.Keyword && Peek().Value.Equals("WITH", StringComparison.OrdinalIgnoreCase))
         {
@@ -92,6 +93,18 @@ public sealed class SqlCommandParser : ICommandParser
                 if (key.Equals("defaultMaxShardSize", StringComparison.OrdinalIgnoreCase))
                 {
                     defaultMaxShardSize = long.Parse(Expect(TokenType.NumberLiteral).Value);
+                }
+                else if (key.Equals("storageBackend", StringComparison.OrdinalIgnoreCase))
+                {
+                    var next = Peek();
+                    var val = next.Type == TokenType.StringLiteral
+                        ? Expect(TokenType.StringLiteral).Value
+                        : ExpectIdentifier().Name;
+                    var normalized = val.Trim().ToLowerInvariant();
+                    if (normalized is "text" or "binary")
+                        storageBackend = normalized;
+                    else
+                        throw ParseError($"storageBackend must be 'text' or 'binary'; got '{val}'", next.Line, next.Column);
                 }
                 else
                 {
@@ -110,7 +123,7 @@ public sealed class SqlCommandParser : ICommandParser
         }
 
         OptionalSemicolon();
-        return new CreateDatabaseCommand(name, ".", numberFormat, textEncoding, defaultMaxShardSize);
+        return new CreateDatabaseCommand(name, ".", numberFormat, textEncoding, defaultMaxShardSize, storageBackend);
     }
 
     private CreateTableCommand ParseCreateTable()

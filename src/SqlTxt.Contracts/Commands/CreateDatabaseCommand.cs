@@ -8,9 +8,11 @@ namespace SqlTxt.Contracts.Commands;
 /// <param name="NumberFormat">Optional numeric format (e.g., "standard").</param>
 /// <param name="TextEncoding">Optional text encoding (fixed-width only).</param>
 /// <param name="DefaultMaxShardSize">Optional database-level default max shard size in bytes (e.g., 20971520 for 20 MB).</param>
+/// <param name="StorageBackend">Storage backend: "text" (human-readable) or "binary" (performance). Default: "text".</param>
 public sealed record CreateDatabaseCommand(
     string DatabaseName,
     string Path,
     string? NumberFormat = null,
     string? TextEncoding = null,
-    long? DefaultMaxShardSize = null);
+    long? DefaultMaxShardSize = null,
+    string? StorageBackend = null);

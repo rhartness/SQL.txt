@@ -16,13 +16,19 @@ Use WASM-compatible in-memory storage, persisted to a `.wasmdb` file. When speci
 Creates a new database at the specified path.
 
 ```
-sqltxt create-db <path> [--wasm]
+sqltxt create-db <path> [--wasm] [--storage:text|binary]
 ```
+
+**Options:**
+- `--storage:text` — Human-readable files (default)
+- `--storage:binary` — Compact binary files for performance
 
 **Examples:**
 ```bash
 sqltxt create-db ./WikiDb
 sqltxt create-db ./WikiDb --wasm
+sqltxt create-db ./WikiDb --storage:binary
+sqltxt create-db ./WikiDb --storage:text
 ```
 
 ### exec

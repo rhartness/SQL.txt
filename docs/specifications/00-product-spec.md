@@ -8,7 +8,8 @@
 
 ### In Scope
 
-- Human-readable on-disk storage
+- Dual storage backends (text, binary) — chosen at database creation; text for learning/inspection, binary for performance
+- Human-readable on-disk storage (text backend)
 - Lightweight local embedded usage
 - Phased implementation (Stage 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → CTE → Phase 5 → Phase 6 → Phase 7)
 - Single-table CRUD in Phase 1
@@ -69,7 +70,7 @@
 - Cross-platform: Windows, macOS, Linux
 - Lock coordinator for concurrent API calls
 - No external database server
-- Human-readable formats only
+- Dual storage backends (text, binary); text default for learning
 - Case-insensitive keywords; case-preserving identifiers
 
 ## Documentation

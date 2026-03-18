@@ -36,6 +36,21 @@ public interface IFileSystemAccessor
     Task AppendAllTextAsync(string path, string content, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads all bytes from a file.
+    /// </summary>
+    Task<byte[]> ReadAllBytesAsync(string path, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Writes all bytes to a file.
+    /// </summary>
+    Task WriteAllBytesAsync(string path, byte[] content, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Appends bytes to a file.
+    /// </summary>
+    Task AppendAllBytesAsync(string path, byte[] content, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reads all lines from a file.
     /// </summary>
     Task<IReadOnlyList<string>> ReadAllLinesAsync(string path, CancellationToken cancellationToken = default);

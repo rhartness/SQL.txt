@@ -68,13 +68,13 @@ alwaysApply: true
 
 **Current focus:** Phase 2. See [docs/plans/](docs/plans/).
 
-**Strategic:** SQL:2023 alignment per phase; configurable sharding (20MB default); rebalance API; Knuth-style efficiency; statistics-ready design.
+**Strategic:** SQL:2023 alignment per phase; dual storage backends (text | binary); configurable sharding (20MB default); rebalance API; Knuth-style efficiency; statistics-ready design.
 
 ## Storage Layout
 
 - Root folder = database name
-- `db/` — Database properties (manifest; defaultMaxShardSize 20MB)
-- `Tables/` — User tables; each folder has `<TableName>.txt`, `_STOC.txt`, `_PK.txt`, `_FK_*.txt`, `_INX_*.txt`
+- `db/` — Database properties (manifest; defaultMaxShardSize 20MB; storageBackend: "text" | "binary")
+- `Tables/` — User tables; each folder has `<TableName>.txt` or `.bin` (per storageBackend), `_STOC.txt`/`.bin`, `_PK.txt`/`.idx`, `_FK_*.txt`/`.idx`, `_INX_*.txt`/`.idx`
 - `~System/` — System metadata (prefix `~` = engine-managed)
 - `Views/`, `Procedures/`, `Functions/` — Phase 6 (views, stored procedures, functions)
 

@@ -52,10 +52,19 @@ Contains all properties specific to the database itself. It describes the databa
   "storageFormatVersion": 1,
   "numberFormat": "standard",
   "textEncoding": "ascii",
-  "defaultMaxShardSize": 20971520
+  "defaultMaxShardSize": 20971520,
+  "storageBackend": "text"
 }
 ```
 
+- **storageBackend** — Optional; `"text"` (human-readable) or `"binary"` (compact, performance). Default: `"text"`. Chosen at database creation; cannot be changed. Text uses `.txt` files; binary uses `.bin` for data files.
+
+### Binary Data Format (storageBackend=binary)
+
+When `storageBackend=binary`, table data files use extension `.bin` and a fixed-length record format:
+
+- **Record layout:** 1 byte flag (0=active, 1=deleted) + 8 bytes RowId (little-endian) + fixed-width column values per schema
+- **Column bytes:** CHAR(n)=n, INT=4, TINYINT=1, BIGINT=8, BIT=1, DECIMAL=8
 - **numberFormat** — Optional; default `"standard"` (decimal `.`). Override for locale-specific numeric formatting.
 - **textEncoding** — Optional; only fixed-width encodings (each character = fixed bytes). No UTF-8. Default: ASCII or platform fixed-width.
 - **defaultMaxShardSize** — Optional; default 20 MB (20,971,520 bytes). Database-level default for table shard size. Overridable per table via `CREATE TABLE ... WITH (maxShardSize=...)`. See [06-durability-and-sharding.md](06-durability-and-sharding.md).

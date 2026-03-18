@@ -62,6 +62,16 @@ When adding features, update all relevant documentation. For each functionality,
 
 See [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md) and [.cursor/rules/sql-txt-documentation.mdc](.cursor/rules/sql-txt-documentation.mdc).
 
+## Plan Execution Rules (Mandatory)
+
+These rules apply to **every** sub-plan execution:
+
+1. **On plan completion:** Update [README.md](README.md) Roadmap table (phase status, scope changes)
+2. **On feature addition:** Update [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md) with implemented feature IDs
+3. **On API/CLI change:** Update [docs/cli-reference.md](docs/cli-reference.md), Getting Started docs, and XML comments
+4. **On storage change:** Update [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md)
+5. **Examples:** Provide examples for CLI (filesystem), CLI (WASM), and Embedding per [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
+
 ## Key References
 
 - **Full specification:** [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md)

@@ -19,7 +19,8 @@ public sealed class DatabaseCreator
     /// <param name="numberFormat">Optional numeric format.</param>
     /// <param name="textEncoding">Optional text encoding.</param>
     /// <param name="defaultMaxShardSize">Optional database-level default max shard size in bytes (default 20 MB).</param>
-    public void CreateDatabase(string databasePath, string? numberFormat = null, string? textEncoding = null, long? defaultMaxShardSize = null)
+    /// <param name="storageBackend">Storage backend: "text" or "binary". Default: "text".</param>
+    public void CreateDatabase(string databasePath, string? numberFormat = null, string? textEncoding = null, long? defaultMaxShardSize = null, string? storageBackend = null)
     {
         var root = _fs.GetFullPath(databasePath);
         _fs.CreateDirectory(root);
@@ -37,13 +38,15 @@ public sealed class DatabaseCreator
         _fs.CreateDirectory(schemasDir);
 
         var effectiveDefault = defaultMaxShardSize ?? 20_971_520; // 20 MB default per ADR-007
+        var effectiveBackend = NormalizeStorageBackend(storageBackend) ?? "text";
         var manifest = new
         {
             engineVersion = "0.1.0",
             storageFormatVersion = 1,
             numberFormat = numberFormat ?? "standard",
             textEncoding = textEncoding ?? "ascii",
-            defaultMaxShardSize = effectiveDefault
+            defaultMaxShardSize = effectiveDefault,
+            storageBackend = effectiveBackend
         };
 
         var manifestPath = _fs.Combine(dbDir, "manifest.json");
@@ -70,6 +73,38 @@ public sealed class DatabaseCreator
         if (root.TryGetProperty("defaultMaxShardSize", out var prop) && prop.TryGetInt64(out var val))
             return val;
         return null;
+    }
+
+    /// <summary>
+    /// Reads the storage backend from the database manifest.
+    /// </summary>
+    /// <param name="databasePath">Path to database root.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Storage backend ("text" or "binary"), or "text" if not set (legacy database).</returns>
+    public async Task<string> GetStorageBackendAsync(string databasePath, CancellationToken cancellationToken = default)
+    {
+        var dbDir = _fs.Combine(databasePath, "db");
+        var manifestPath = _fs.Combine(dbDir, "manifest.json");
+        if (!_fs.FileExists(manifestPath))
+            return "text";
+
+        var json = await _fs.ReadAllTextAsync(manifestPath, cancellationToken).ConfigureAwait(false);
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        if (root.TryGetProperty("storageBackend", out var prop))
+        {
+            var val = prop.GetString();
+            return NormalizeStorageBackend(val) ?? "text";
+        }
+        return "text";
+    }
+
+    private static string? NormalizeStorageBackend(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var v = value.Trim().ToLowerInvariant();
+        return v is "text" or "binary" ? v : null;
     }
 
     /// <summary>

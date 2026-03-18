@@ -39,8 +39,9 @@ public sealed class DatabaseEngine : IDatabaseEngine
         var schemaStore = new SchemaStore(_fs);
         _schemaStore = new CachingSchemaStore(schemaStore);
         _metadataStore = new MetadataStore(_fs);
-        _tableDataStore = new TableDataStore(_fs, serializer, deserializer, _schemaStore, _rowIdStore, stocStore: null, indexStore: _indexStore);
         _dbCreator = new DatabaseCreator(_fs);
+        var backendResolver = new StorageBackendResolver(_dbCreator);
+        _tableDataStore = new TableDataStore(_fs, serializer, deserializer, _schemaStore, _rowIdStore, stocStore: null, indexStore: _indexStore, backendResolver: backendResolver);
     }
 
     public async Task<EngineResult> ExecuteAsync(string commandText, string databasePath, CancellationToken cancellationToken = default)
@@ -61,7 +62,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         if (cmd is CreateDatabaseCommand createDb)
         {
             var dbRoot = _fs.Combine(resolvedPath, createDb.DatabaseName);
-            _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding, createDb.DefaultMaxShardSize);
+            _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding, createDb.DefaultMaxShardSize, createDb.StorageBackend);
             return new EngineResult(0);
         }
 
@@ -175,7 +176,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 {
                     var parent = Path.GetDirectoryName(currentDbPath) ?? currentDbPath;
                     var dbRoot = _fs.Combine(parent, createDb.DatabaseName);
-                    _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding, createDb.DefaultMaxShardSize);
+                    _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding, createDb.DefaultMaxShardSize, createDb.StorageBackend);
                     currentDbPath = dbRoot;
                     totalExecuted++;
                     continue;
@@ -262,7 +263,10 @@ public sealed class DatabaseEngine : IDatabaseEngine
         }
 
         AddStep("Creating database WikiDb...");
-        await ExecuteAsync("CREATE DATABASE WikiDb", resolvedPath, cancellationToken).ConfigureAwait(false);
+        var createDbSql = opts.StorageBackend is "binary"
+            ? "CREATE DATABASE WikiDb WITH (storageBackend=binary)"
+            : "CREATE DATABASE WikiDb";
+        await ExecuteAsync(createDbSql, resolvedPath, cancellationToken).ConfigureAwait(false);
 
         var createScript = LoadEmbeddedScript("SqlTxt.Engine.EmbeddedScripts.CreateWiki.sql");
         AddStep("Running schema script (CREATE TABLE)...");

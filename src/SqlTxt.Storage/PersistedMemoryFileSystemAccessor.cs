@@ -58,6 +58,26 @@ public sealed class PersistedMemoryFileSystemAccessor : IFileSystemAccessor
         Save();
     }
 
+    public async Task<byte[]> ReadAllBytesAsync(string path, CancellationToken cancellationToken = default)
+    {
+        EnsureLoaded();
+        return await _inner.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task WriteAllBytesAsync(string path, byte[] content, CancellationToken cancellationToken = default)
+    {
+        EnsureLoaded();
+        await _inner.WriteAllBytesAsync(path, content, cancellationToken).ConfigureAwait(false);
+        Save();
+    }
+
+    public async Task AppendAllBytesAsync(string path, byte[] content, CancellationToken cancellationToken = default)
+    {
+        EnsureLoaded();
+        await _inner.AppendAllBytesAsync(path, content, cancellationToken).ConfigureAwait(false);
+        Save();
+    }
+
     public async Task<IReadOnlyList<string>> ReadAllLinesAsync(string path, CancellationToken cancellationToken = default)
     {
         EnsureLoaded();

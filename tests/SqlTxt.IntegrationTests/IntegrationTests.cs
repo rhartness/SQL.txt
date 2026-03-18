@@ -86,4 +86,37 @@ public class IntegrationTests
                 Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task BinaryStorage_CreateDbWithBinary_CreateTableInsertSelect_Works()
+    {
+        var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName} WITH (storageBackend=binary)", tempDir);
+            var dbPath = dir;
+
+            await engine.ExecuteAsync("CREATE TABLE Item (Id CHAR(5), Name CHAR(20))", dbPath);
+            await engine.ExecuteAsync("INSERT INTO Item (Id, Name) VALUES ('1', 'Alpha')", dbPath);
+            await engine.ExecuteAsync("INSERT INTO Item (Id, Name) VALUES ('2', 'Beta')", dbPath);
+
+            var result = await engine.ExecuteQueryAsync("SELECT * FROM Item", dbPath);
+            Assert.NotNull(result.QueryResult);
+            Assert.Equal(2, result.QueryResult.Rows.Count);
+            Assert.Equal("Alpha", result.QueryResult.Rows[0].GetValue("Name"));
+            Assert.Equal("Beta", result.QueryResult.Rows[1].GetValue("Name"));
+
+            var dataFile = Path.Combine(dbPath, "Tables", "Item", "Item.bin");
+            Assert.True(File.Exists(dataFile));
+            Assert.True(new FileInfo(dataFile).Length > 0);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

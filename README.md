@@ -12,7 +12,8 @@ SQL.txt is for people who like to learn by doing, who enjoy poking around their 
 
 ## Features
 
-- **Human-readable on-disk storage** — Inspect and debug data with any text editor
+- **Storage backends (text | binary)** — Choose at database creation: `--storage:text` for human-readable learning/inspection, `--storage:binary` for performance
+- **Human-readable on-disk storage** — Inspect and debug data with any text editor (text backend)
 - **Lightweight local embedded usage** — No server, no external dependencies
 - **WASM-compatible storage** — `--wasm` mode for browser-style storage; single `.wasmdb` file persistence
 - **Cross-platform** — Windows, macOS, Linux
@@ -72,20 +73,24 @@ dotnet test
 - [Architecture](docs/architecture/) — System design and storage format
 - [Sample Wiki Database](docs/samples/wiki-database.md) — Example schema and scripts
 - [Plans](docs/plans/) — Implementation plans
+- [SQL:2023 Compliance Roadmap](docs/roadmap/00-sql2023-compliance-roadmap.md) — Full SQL:2023 feature mapping and deferred features
 
 ## Roadmap
 
-SQL.txt is built in phases: start with a working engine and core CRUD, then add relational features (indexes, keys, constraints), evolve the storage format for variable-width data, and extend with query enrichment, schema evolution, and programmability (views, procedures, functions). The focus is on incremental, testable progress rather than big-bang releases.
+SQL.txt is built in phases toward **100% SQL:2023 compliance per phase**: start with a working engine and core CRUD, add relational features (indexes, keys, constraints), evolve storage for variable-width data, extend with query enrichment, schema evolution, and programmability. Each phase implements all applicable SQL:2023 features for its scope. See [SQL:2023 Compliance Roadmap](docs/roadmap/00-sql2023-compliance-roadmap.md) for full feature mapping.
 
 | Phase | Status | Scope |
 |-------|--------|-------|
 | **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
 | **Phase 2** | Done | Indexes, PK/FK, constraints, relational metadata |
-| **Phase 3** | Next | VARCHAR, variable-width fields, storage evolution |
-| **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
-| **Phase 5** | Planned | ALTER TABLE, transactions |
-| **Phase 6** | Planned | Views, stored procedures, functions |
+| **Storage Abstraction** | Done | `--storage:text` \| `--storage:binary` at database creation |
+| **Phase 3** | Next | VARCHAR, variable-width fields, storage evolution; SQL:2023 T055/T056/T062/T081 |
+| **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 |
+| **CTE Phase** | Planned | WITH clause, recursive CTE; SQL:2023 |
+| **Phase 5** | Planned | ALTER TABLE, transactions; SQL:2023 |
+| **Phase 6** | Planned | Views, stored procedures, functions; SQL:2023 |
+| **Phase 7** | Planned | Statistics (CREATE STATISTICS, histograms) |
 
 ## License
 

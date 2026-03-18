@@ -19,6 +19,25 @@ public class SqlCommandParserTests
     }
 
     [Fact]
+    public void Parse_CreateDatabase_WithStorageBackend_ReturnsCommand()
+    {
+        var cmd = _parser.Parse("CREATE DATABASE TestDb WITH (storageBackend=binary)");
+        Assert.IsType<CreateDatabaseCommand>(cmd);
+        var c = (CreateDatabaseCommand)cmd;
+        Assert.Equal("TestDb", c.DatabaseName);
+        Assert.Equal("binary", c.StorageBackend);
+    }
+
+    [Fact]
+    public void Parse_CreateDatabase_WithStorageBackendText_ReturnsCommand()
+    {
+        var cmd = _parser.Parse("CREATE DATABASE TestDb WITH (storageBackend=text)");
+        Assert.IsType<CreateDatabaseCommand>(cmd);
+        var c = (CreateDatabaseCommand)cmd;
+        Assert.Equal("text", c.StorageBackend);
+    }
+
+    [Fact]
     public void Parse_CreateTable_ReturnsCommand()
     {
         var cmd = _parser.Parse("CREATE TABLE Users (Id CHAR(10), Name CHAR(50))");

@@ -14,6 +14,7 @@ public static class HighConcurrencyTest
         int threads = 8,
         int opsPerThread = 50,
         int readerThreads = 0,
+        string? storageBackend = null,
         ResultLogger? logger = null,
         CancellationToken cancellationToken = default)
     {
@@ -27,8 +28,8 @@ public static class HighConcurrencyTest
 
         try
         {
-            logger?.Log($"Building WikiDb at {dbPath}...");
-            await engine.BuildSampleWikiAsync(dbPath, new BuildSampleWikiOptions(Verbose: false, DeleteIfExists: true), cancellationToken).ConfigureAwait(false);
+            logger?.Log($"Building WikiDb at {dbPath} (storage: {storageBackend ?? "text"})...");
+            await engine.BuildSampleWikiAsync(dbPath, new BuildSampleWikiOptions(Verbose: false, DeleteIfExists: true, StorageBackend: storageBackend), cancellationToken).ConfigureAwait(false);
 
             var wikiDbPath = Path.Combine(dbPath, "WikiDb");
             totalOps = (threads * opsPerThread * 3) + (readerThreads * opsPerThread);
@@ -183,6 +184,8 @@ public static class HighConcurrencyTest
             totalOps,
             successCount,
             failureCount,
-            exceptions);
+            exceptions,
+            null,
+            storageBackend ?? "text");
     }
 }

@@ -60,6 +60,50 @@ public sealed class FileSystemAccessor : Contracts.IFileSystemAccessor
         }
     }
 
+    public async Task<byte[]> ReadAllBytesAsync(string path, CancellationToken cancellationToken = default) =>
+        await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+
+    public async Task WriteAllBytesAsync(string path, byte[] content, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                await File.WriteAllBytesAsync(path, content, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (IOException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    public async Task AppendAllBytesAsync(string path, byte[] content, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                await using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true);
+                await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (IOException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
     public async Task<IReadOnlyList<string>> ReadAllLinesAsync(string path, CancellationToken cancellationToken = default)
     {
         var lines = await File.ReadAllLinesAsync(path, cancellationToken).ConfigureAwait(false);

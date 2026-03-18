@@ -61,7 +61,7 @@ static void PrintUsage()
         SQL.txt CLI - Lightweight text-file database
 
         Usage:
-          sqltxt create-db <path> [--wasm]           Create database at path
+          sqltxt create-db <path> [--wasm] [--storage:text|binary]  Create database at path
           sqltxt build-sample-wiki [--db <path>] [--wasm] Build sample Wiki database
           sqltxt exec --db <path> [--wasm] "<statement>" Execute single statement
           sqltxt query --db <path> [--wasm] "<select>"   Execute SELECT and print results
@@ -71,6 +71,8 @@ static void PrintUsage()
 
         Options:
           --wasm  Use WASM-compatible in-memory storage (persisted to .wasmdb file)
+          --storage:text   Human-readable files (default)
+          --storage:binary Compact binary files for performance
 
         Examples:
           sqltxt create-db ./WikiDb
@@ -100,13 +102,14 @@ static async Task<int> BuildSampleWikiAsync(List<string> args)
 static async Task<int> CreateDatabaseAsync(List<string> args)
 {
     var (_, useWasm, remaining) = ExtractDbPathAndWasm(args);
-    if (remaining.Count < 1)
+    var (storageBackend, remainingAfterStorage) = ExtractStorageBackend(remaining);
+    if (remainingAfterStorage.Count < 1)
     {
         Console.Error.WriteLine("create-db requires <path>");
         return 1;
     }
 
-    var path = Path.GetFullPath(remaining[0].TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+    var path = Path.GetFullPath(remainingAfterStorage[0].TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
     string persistencePath;
     string dbName;
     string parent;
@@ -121,7 +124,8 @@ static async Task<int> CreateDatabaseAsync(List<string> args)
         parent = ".";
         var fs = new PersistedMemoryFileSystemAccessor(persistencePath);
         var engine = new DatabaseEngine(fs: fs);
-        await engine.ExecuteAsync($"CREATE DATABASE {dbName}", parent);
+        var sql = storageBackend != null ? $"CREATE DATABASE {dbName} WITH (storageBackend={storageBackend})" : $"CREATE DATABASE {dbName}";
+        await engine.ExecuteAsync(sql, parent);
         Console.WriteLine($"Created WASM database at {persistencePath}");
     }
     else
@@ -131,10 +135,28 @@ static async Task<int> CreateDatabaseAsync(List<string> args)
             dbName = "Database";
         parent = Path.GetDirectoryName(path) ?? ".";
         var engine = new DatabaseEngine();
-        await engine.ExecuteAsync($"CREATE DATABASE {dbName}", parent);
+        var sql = storageBackend != null ? $"CREATE DATABASE {dbName} WITH (storageBackend={storageBackend})" : $"CREATE DATABASE {dbName}";
+        await engine.ExecuteAsync(sql, parent);
         Console.WriteLine($"Created database at {path}");
     }
     return 0;
+}
+
+static (string? StorageBackend, List<string> Remaining) ExtractStorageBackend(List<string> args)
+{
+    var list = new List<string>(args);
+    string? storageBackend = null;
+    var idx = list.FindIndex(a => a.StartsWith("--storage:", StringComparison.OrdinalIgnoreCase));
+    if (idx >= 0)
+    {
+        var val = list[idx]["--storage:".Length..].Trim().ToLowerInvariant();
+        if (val is "text" or "binary")
+        {
+            storageBackend = val;
+            list.RemoveAt(idx);
+        }
+    }
+    return (storageBackend, list);
 }
 
 static async Task<int> ExecAsync(List<string> args)

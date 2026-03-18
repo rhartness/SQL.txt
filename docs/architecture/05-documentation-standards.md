@@ -50,6 +50,16 @@ Documentation must be organized by implemented features:
 - **On API change** — Update XML comments and generated docs
 - **On CLI change** — Update CLI reference and examples
 
+## Plan Execution Rules (Mandatory)
+
+These rules apply to **every** sub-plan execution:
+
+1. **On plan completion:** Update [README.md](../../README.md) Roadmap table (phase status, scope changes)
+2. **On feature addition:** Update [11-sql2023-mapping.md](11-sql2023-mapping.md) with implemented feature IDs
+3. **On API/CLI change:** Update [docs/cli-reference.md](../cli-reference.md), Getting Started docs, and XML comments
+4. **On storage change:** Update [02-storage-format.md](02-storage-format.md)
+5. **Examples:** Provide examples for CLI (filesystem), CLI (WASM), and Embedding per this document
+
 ## Implementation Types
 
 SQL.txt supports multiple implementation paths. Reference docs must show examples for each type where relevant:

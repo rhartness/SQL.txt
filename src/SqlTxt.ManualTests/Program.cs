@@ -11,24 +11,58 @@ if (argsList.Count == 0)
 var testName = argsList[0].ToLowerInvariant();
 argsList.RemoveAt(0);
 
-var (dbPath, logPath, verbose) = ParseCommonOptions(argsList);
+var (dbPath, logPath, verbose, storage) = ParseCommonOptions(argsList);
 
 using var logger = new ResultLogger(logPath, verbose);
 logger.Log($"SQL.txt Manual Tests - {testName}");
 logger.Log($"Database path: {dbPath}");
+logger.Log($"Storage: {storage}");
 logger.Log($"Log file: {logPath}");
 logger.Log(string.Empty);
 
-TestResult result;
+var results = new List<TestResult>();
 try
 {
-    result = testName switch
+    var isValidTest = testName is "concurrency" or "sharding" or "all";
+    if (!isValidTest)
     {
-        "concurrency" => await RunConcurrencyAsync(argsList, dbPath, logger),
-        "sharding" => await RunShardingAsync(argsList, dbPath, logger),
-        "all" => await RunAllAsync(argsList, dbPath, logger),
-        _ => UnknownTest(testName)
-    };
+        var unknown = UnknownTest(testName);
+        results.Add(unknown);
+        logger.LogResult(unknown);
+    }
+    else if (storage == "all")
+    {
+        var textPath = Path.Combine(dbPath, "ManualTest_Text");
+        var binaryPath = Path.Combine(dbPath, "ManualTest_Binary");
+        var collected = new List<TestResult>();
+
+        if (testName is "concurrency" or "all")
+        {
+            collected.Add(await RunConcurrencyAsync(argsList, textPath, logger, "text").ConfigureAwait(false));
+            collected.Add(await RunConcurrencyAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
+        }
+        if (testName is "sharding" or "all")
+        {
+            collected.Add(await RunShardingAsync(argsList, textPath, logger, "text").ConfigureAwait(false));
+            collected.Add(await RunShardingAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
+        }
+        results = collected;
+        logger.LogComparisonTable(collected);
+        foreach (var r in collected)
+            logger.LogResult(r);
+    }
+    else
+    {
+        var result = testName switch
+        {
+            "concurrency" => await RunConcurrencyAsync(argsList, dbPath, logger, storage),
+            "sharding" => await RunShardingAsync(argsList, dbPath, logger, storage),
+            "all" => await RunAllAsync(argsList, dbPath, logger, storage),
+            _ => UnknownTest(testName)
+        };
+        results.Add(result);
+        logger.LogResult(result);
+    }
 }
 catch (Exception ex)
 {
@@ -36,16 +70,17 @@ catch (Exception ex)
     return 99;
 }
 
-logger.LogResult(result);
 logger.Log($"Results written to {logPath}");
 
-return result.Passed ? 0 : 1;
+var passed = results.Count > 0 && results.All(r => r.Passed);
+return passed ? 0 : 1;
 
-static (string DbPath, string LogPath, bool Verbose) ParseCommonOptions(List<string> args)
+static (string DbPath, string LogPath, bool Verbose, string Storage) ParseCommonOptions(List<string> args)
 {
     var dbPath = Path.GetFullPath(".");
     var logPath = Path.Combine(Directory.GetCurrentDirectory(), $"ManualTests_{DateTime.Now:yyyyMMdd_HHmmss}.log");
     var verbose = false;
+    var storage = "text";
 
     for (var i = 0; i < args.Count; i++)
     {
@@ -63,6 +98,14 @@ static (string DbPath, string LogPath, bool Verbose) ParseCommonOptions(List<str
             args.RemoveAt(i);
             i--;
         }
+        else if (args[i] == "--storage" && i + 1 < args.Count)
+        {
+            var v = args[i + 1].ToLowerInvariant();
+            storage = v is "text" or "binary" or "all" ? v : "text";
+            args.RemoveAt(i);
+            args.RemoveAt(i);
+            i--;
+        }
         else if (args[i] == "--verbose")
         {
             verbose = true;
@@ -71,10 +114,10 @@ static (string DbPath, string LogPath, bool Verbose) ParseCommonOptions(List<str
         }
     }
 
-    return (dbPath, logPath, verbose);
+    return (dbPath, logPath, verbose, storage);
 }
 
-static async Task<TestResult> RunConcurrencyAsync(List<string> args, string dbPath, ResultLogger logger)
+static async Task<TestResult> RunConcurrencyAsync(List<string> args, string dbPath, ResultLogger logger, string storage)
 {
     var threads = 8;
     var ops = 50;
@@ -99,11 +142,12 @@ static async Task<TestResult> RunConcurrencyAsync(List<string> args, string dbPa
         }
     }
 
-    logger.Log($"Concurrency test: threads={threads}, ops/thread={ops}, readers={readers}");
-    return await HighConcurrencyTest.RunAsync(dbPath, threads, ops, readers, logger).ConfigureAwait(false);
+    var storageBackend = storage is "binary" ? "binary" : null;
+    logger.Log($"Concurrency test: threads={threads}, ops/thread={ops}, readers={readers}, storage={storage}");
+    return await HighConcurrencyTest.RunAsync(dbPath, threads, ops, readers, storageBackend, logger).ConfigureAwait(false);
 }
 
-static async Task<TestResult> RunShardingAsync(List<string> args, string dbPath, ResultLogger logger)
+static async Task<TestResult> RunShardingAsync(List<string> args, string dbPath, ResultLogger logger, string storage)
 {
     var shards = 5;
     var rows = 500;
@@ -122,14 +166,15 @@ static async Task<TestResult> RunShardingAsync(List<string> args, string dbPath,
         }
     }
 
-    logger.Log($"Sharding test: desired shards={shards}, rows={rows}");
-    return await ShardingTest.RunAsync(dbPath, shards, rows, logger).ConfigureAwait(false);
+    var storageBackend = storage is "binary" ? "binary" : null;
+    logger.Log($"Sharding test: desired shards={shards}, rows={rows}, storage={storage}");
+    return await ShardingTest.RunAsync(dbPath, shards, rows, storageBackend, logger).ConfigureAwait(false);
 }
 
-static async Task<TestResult> RunAllAsync(List<string> args, string dbPath, ResultLogger logger)
+static async Task<TestResult> RunAllAsync(List<string> args, string dbPath, ResultLogger logger, string storage)
 {
-    var concurrencyResult = await RunConcurrencyAsync(new List<string>(args), dbPath, logger).ConfigureAwait(false);
-    var shardingResult = await RunShardingAsync(new List<string>(args), dbPath, logger).ConfigureAwait(false);
+    var concurrencyResult = await RunConcurrencyAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
+    var shardingResult = await RunShardingAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
 
     var passed = concurrencyResult.Passed && shardingResult.Passed;
     return new TestResult(
@@ -140,7 +185,8 @@ static async Task<TestResult> RunAllAsync(List<string> args, string dbPath, Resu
         concurrencyResult.SuccessCount + shardingResult.SuccessCount,
         concurrencyResult.FailureCount + shardingResult.FailureCount,
         concurrencyResult.Exceptions.Concat(shardingResult.Exceptions).ToList(),
-        null);
+        null,
+        storage is "binary" ? "binary" : null);
 }
 
 static TestResult UnknownTest(string name)
@@ -164,9 +210,10 @@ static void PrintUsage()
           all            Run both tests
 
         Common options:
-          --db <path>    Database path (default: current directory)
-          --log <path>   Log file path (default: ManualTests_<timestamp>.log)
-          --verbose     Extra output
+          --db <path>       Database path (default: current directory)
+          --log <path>      Log file path (default: ManualTests_<timestamp>.log)
+          --storage <type>  text | binary | all (default: text). Use 'all' to compare timings.
+          --verbose        Extra output
 
         Concurrency options:
           --threads <n>  Writer threads (default: 8)
@@ -179,6 +226,7 @@ static void PrintUsage()
 
         Examples:
           dotnet run --project src/SqlTxt.ManualTests -- concurrency --db ./TestDb
-          dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --shards 5 --rows 500
+          dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --storage all
+          dotnet run --project src/SqlTxt.ManualTests -- all --db ./TestDb --storage all --log ./results.log
         """);
 }
