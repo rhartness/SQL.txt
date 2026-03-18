@@ -80,8 +80,8 @@ SQL.txt is built in phases: start with a working engine and core CRUD, then add 
 |-------|--------|-------|
 | **Stage 0** | Done | Solution scaffolding, design docs, Cursor guidance |
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only |
-| **Phase 2** | Next | Indexes, PK/FK, constraints, relational metadata |
-| **Phase 3** | Planned | VARCHAR, variable-width fields, storage evolution |
+| **Phase 2** | Done | Indexes, PK/FK, constraints, relational metadata |
+| **Phase 3** | Next | VARCHAR, variable-width fields, storage evolution |
 | **Phase 4** | Planned | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
 | **Phase 5** | Planned | ALTER TABLE, transactions |
 | **Phase 6** | Planned | Views, stored procedures, functions |
