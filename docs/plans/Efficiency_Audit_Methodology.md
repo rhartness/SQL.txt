@@ -6,6 +6,8 @@ A repeatable process for scanning existing SQL.txt code and planning efficiency 
 
 **Phase 3.5 gate:** Before starting Phase 4 query features that depend on fast INSERT or index paths, complete or explicitly defer items in [Phase3_5_Storage_Efficiency_Plan.md](Phase3_5_Storage_Efficiency_Plan.md) (true append, batched multi-row INSERT, sorted indexes). Run this audit on any new storage PR.
 
+**Phase 4 gate:** Any PR that adds JOIN, ORDER BY, GROUP BY, or subquery execution must be checked against [Phase4_Implementation_Plan.md](Phase4_Implementation_Plan.md) and the relevant **Phase4_0x_*.md** sub-plan: bounded work memory, spill where specified, no default full materialization + `List.Sort` as the only sort path, and join algorithm choice documented (hash / merge / index nested loop). Extend this audit’s checklist to **query executor** hot paths (per-row allocations, repeated subquery execution).
+
 ## Scan Targets
 
 Audit the following:

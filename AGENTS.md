@@ -17,14 +17,14 @@
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only; SQL:2023 subset |
 | **Phase 2** | Done | Indexes, PK/FK, constraints, STOC, configurable sharding (20MB default), rebalance API |
 | **Phase 3** | Done | VARCHAR, variable-width fields, storage evolution |
-| **Phase 3.5** | Next | Storage & ingest efficiency (batched INSERT path, append I/O, sorted indexes); see [Phase3_5_Storage_Efficiency_Plan.md](docs/plans/Phase3_5_Storage_Efficiency_Plan.md) |
-| **Phase 4** | After 3.5 | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
+| **Phase 3.5** | Done | Storage & ingest efficiency (batched INSERT path, append I/O, sorted indexes); see [Phase3_5_Storage_Efficiency_Plan.md](docs/plans/Phase3_5_Storage_Efficiency_Plan.md) |
+| **Phase 4** | Next | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
 | **CTE Phase** | Planned | Common Table Expressions (WITH clause); non-recursive and recursive |
 | **Phase 5** | Planned | ALTER TABLE, transactions |
 | **Phase 6** | Planned | Views, stored procedures, functions |
 | **Phase 7** | Planned | Statistics (CREATE STATISTICS, histograms, cardinality estimation) |
 
-**Current focus:** Phase 3.5 (storage & ingest efficiency). When starting a new session, check [docs/plans/](docs/plans/) and [Phase3_5_Storage_Efficiency_Plan.md](docs/plans/Phase3_5_Storage_Efficiency_Plan.md).
+**Current focus:** Phase 4 (query enrichment: JOINs, aggregates, ORDER BY, GROUP BY, subqueries). Follow [Phase4_Implementation_Plan.md](docs/plans/Phase4_Implementation_Plan.md) and its **Phase4_0x_*.md** sub-plans for operator design (hash/merge joins, external sort, hash aggregate with spill, decorrelation)—not prototype-only paths. See also [02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md) and [00-sql2023-compliance-roadmap.md](docs/roadmap/00-sql2023-compliance-roadmap.md).
 
 ## Prompt Strategy
 
@@ -46,12 +46,13 @@ When generating plan documents, consider asking: "Do you want specific manual te
 ### Manual Tests
 
 - **Location:** [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests)
-- **When to run:** After storage, sharding, or concurrency changes
-- **Tests:** `concurrency`, `sharding`, `sharding-varchar`, `all`
+- **When to run:** After storage, sharding, or concurrency changes; **after each major query/engine feature** when applicable (add or extend a manual test in the same change or follow-up PR).
+- **Tests:** `concurrency`, `sharding`, `sharding-varchar`, `all`, plus Phase 4 feature tests: `phase4-bind-expr`, `phase4-joins`, `phase4-orderby`, `phase4-groupby`, `phase4-subqueries`, `phase4-all` (see [Phase4_Implementation_Plan.md](docs/plans/Phase4_Implementation_Plan.md))
 - **Defaults:** Use the repo’s **`manual-test-artifacts/`** tree — omit `--db` to get `manual-test-artifacts/run-<timestamp>/`; omit `--log` for `manual-test-artifacts/logs/ManualTests_<timestamp>.log`. Do **not** use `--db .` at the repo root for agent runs.
 - **Retention:** Default **`--save-db` is off** — the run directory (or `WikiDb` / `VarcharShardingDb` / `ManualTest_*` under an explicit `--db`) is deleted after the run. Pass **`--save-db`** to keep databases for inspection.
 - **Command:** `dotnet run --project src/SqlTxt.ManualTests -- <test> [--storage all] [--save-db]`
-- **Prompt:** "Do you want specific manual tests generated for this feature?" when adding storage/sharding/concurrency features
+- **Prompt:** "Do you want specific manual tests generated for this feature?" when adding storage/sharding/concurrency features or **any major engine feature** (JOINs, aggregates, sort, subqueries, etc.).
+- **`--compare:localdb`:** Ignored for `phase4-*` manual tests; do not assume LocalDB comparison runs for features LocalDB is not being used to validate.
 
 ## Efficiency Requirements (Knuth-Style)
 
@@ -82,7 +83,8 @@ These rules apply to **every** sub-plan execution:
 3. **On API/CLI change:** Update [docs/cli-reference.md](docs/cli-reference.md), Getting Started docs, and XML comments
 4. **On storage change:** Update [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md)
 5. **On storage/format change:** Run manual tests (`sharding`, `sharding-varchar`, `concurrency`) and extend them if the change affects row format, sharding, or locking
-6. **Examples:** Provide examples for CLI (filesystem), CLI (WASM), and Embedding per [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
+6. **On major feature addition (query, execution, new SQL surface):** Add or update **manual tests** in [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests) when the feature is user-visible or affects I/O, locking, or performance; wire the test name into [ManualTestProgram.cs](src/SqlTxt.ManualTests/ManualTestProgram.cs) and document it in the relevant plan under `docs/plans/`
+7. **Examples:** Provide examples for CLI (filesystem), CLI (WASM), and Embedding per [docs/architecture/05-documentation-standards.md](docs/architecture/05-documentation-standards.md)
 
 ## Key References
 
@@ -103,7 +105,7 @@ These rules apply to **every** sub-plan execution:
 - **Performance/efficiency:** [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md)
 - **Efficiency audit:** [docs/plans/Efficiency_Audit_Methodology.md](docs/plans/Efficiency_Audit_Methodology.md)
 - **Sample Wiki database:** [docs/samples/wiki-database.md](docs/samples/wiki-database.md)
-- **Plans:** [docs/plans/](docs/plans/)
+- **Plans:** [docs/plans/](docs/plans/) — Phase 4: [Phase4_Implementation_Plan.md](docs/plans/Phase4_Implementation_Plan.md)
 
 ## Project Structure
 

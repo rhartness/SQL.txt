@@ -40,7 +40,7 @@ alwaysApply: true
 | SqlTxt.Storage | Directory structure, schema/metadata/row file I/O, format versioning |
 | SqlTxt.Parser | Tokenizer, parser, command AST/DTO, error reporting |
 | SqlTxt.Engine | Create db/table, insert, select, update, delete, table scans |
-| SqlTxt.ManualTests | Concurrency, sharding (fixed and VARCHAR), performance |
+| SqlTxt.ManualTests | Concurrency, sharding (fixed and VARCHAR), performance; **add manual tests for each major feature** when applicable (register in `ManualTestProgram.cs`) |
 
 ## Build Types
 
@@ -61,14 +61,14 @@ alwaysApply: true
 | Phase 1 | Done |
 | Phase 2 | Done |
 | Phase 3 | Done |
-| Phase 3.5 | Next |
-| Phase 4 | After 3.5 |
+| Phase 3.5 | Done |
+| Phase 4 | Next |
 | CTE Phase | Planned |
 | Phase 5 | Planned |
 | Phase 6 | Planned |
 | Phase 7 | Planned (Statistics) |
 
-**Current focus:** Phase 3.5 (storage & ingest efficiency). See [docs/plans/Phase3_5_Storage_Efficiency_Plan.md](../../docs/plans/Phase3_5_Storage_Efficiency_Plan.md) and [docs/plans/](docs/plans/).
+**Current focus:** Phase 4 (query enrichment). Implementation and efficiency bars: [Phase4_Implementation_Plan.md](../../docs/plans/Phase4_Implementation_Plan.md) and **Phase4_0x_*.md** sub-plans. See [02_Post_Phase3_Features.md](../../docs/specifications/02_Post_Phase3_Features.md) and [00-sql2023-compliance-roadmap.md](../../docs/roadmap/00-sql2023-compliance-roadmap.md). Phase 3.5 is complete: [Phase3_5_Storage_Efficiency_Plan.md](../../docs/plans/Phase3_5_Storage_Efficiency_Plan.md).
 
 **Strategic:** SQL:2023 alignment per phase; dual storage backends (text | binary); configurable sharding (20MB default); rebalance API; Knuth-style efficiency; statistics-ready design.
 

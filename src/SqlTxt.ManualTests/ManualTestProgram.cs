@@ -54,12 +54,38 @@ internal static class ManualTestProgram
             var results = new List<TestResult>();
             try
             {
-                var isValidTest = testName is "concurrency" or "sharding" or "sharding-varchar" or "all";
-                if (!isValidTest)
+                var isPhase4 = IsPhase4TestName(testName);
+                var isLegacyValid = testName is "concurrency" or "sharding" or "sharding-varchar" or "all";
+                if (!isPhase4 && !isLegacyValid)
                 {
                     var unknown = UnknownTest(testName);
                     results.Add(unknown);
                     logger.LogResult(unknown);
+                }
+                else if (isPhase4)
+                {
+                    if (options.CompareWith == "localdb")
+                    {
+                        logger.Log(
+                            "Note: --compare:localdb is ignored for Phase 4 manual tests. " +
+                            "LocalDB parity is not used for these feature-specific scenarios (and may not match SQL.txt Phase 4 surface area).");
+                    }
+
+                    if (options.Storage == "all")
+                    {
+                        var textPath = Path.Combine(options.DbPath, "ManualTest_Text");
+                        var binaryPath = Path.Combine(options.DbPath, "ManualTest_Binary");
+                        results = await RunPhase4StorageAllAsync(testName, textPath, binaryPath, logger).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        results = await RunPhase4SingleStorageAsync(testName, options.DbPath, logger, options.Storage).ConfigureAwait(false);
+                    }
+
+                    if (options.Verbose)
+                        foreach (var r in results)
+                            logger.LogResult(r);
+                    logger.LogSummaryTable(results);
                 }
                 else if (options.Storage == "all")
                 {
@@ -105,7 +131,7 @@ internal static class ManualTestProgram
                         _ => UnknownTest(testName)
                     };
                     results.Add(result);
-                    if (options.CompareWith == "localdb")
+                    if (options.CompareWith == "localdb" && !isPhase4)
                     {
                         if (options.Storage == "text")
                         {
@@ -225,6 +251,11 @@ internal static class ManualTestProgram
         TryDel(Path.Combine(dbRoot, "ManualTest_Text"));
         TryDel(Path.Combine(dbRoot, "ManualTest_Binary"));
         TryDel(Path.Combine(dbRoot, "ManualTest_Binary_Compare"));
+        TryDel(Path.Combine(dbRoot, "Phase4BindExprDb"));
+        TryDel(Path.Combine(dbRoot, "Phase4JoinsDb"));
+        TryDel(Path.Combine(dbRoot, "Phase4OrderByDb"));
+        TryDel(Path.Combine(dbRoot, "Phase4GroupByDb"));
+        TryDel(Path.Combine(dbRoot, "Phase4SubqueriesDb"));
     }
 
     private static ManualTestCommonOptions ParseCommonOptions(List<string> args, string repoRoot)
@@ -457,17 +488,74 @@ internal static class ManualTestProgram
         return await VarcharShardingTest.RunAsync(dbPath, shards, rows, storageBackend, logger).ConfigureAwait(false);
     }
 
+    private static bool IsPhase4TestName(string name) =>
+        name is "phase4-bind-expr" or "phase4-joins" or "phase4-orderby" or "phase4-groupby" or "phase4-subqueries" or "phase4-all";
+
+    private static readonly string[] Phase4OrderedSubtests =
+    {
+        "phase4-bind-expr", "phase4-joins", "phase4-orderby", "phase4-groupby", "phase4-subqueries"
+    };
+
+    private static async Task<List<TestResult>> RunPhase4SingleStorageAsync(
+        string testName,
+        string dbPath,
+        ResultLogger logger,
+        string storage)
+    {
+        var list = new List<TestResult>();
+        if (testName == "phase4-all")
+        {
+            foreach (var sub in Phase4OrderedSubtests)
+                list.Add(await RunPhase4OneAsync(sub, dbPath, logger, storage).ConfigureAwait(false));
+        }
+        else
+            list.Add(await RunPhase4OneAsync(testName, dbPath, logger, storage).ConfigureAwait(false));
+        return list;
+    }
+
+    private static async Task<List<TestResult>> RunPhase4StorageAllAsync(
+        string testName,
+        string textPath,
+        string binaryPath,
+        ResultLogger logger)
+    {
+        var tests = testName == "phase4-all" ? Phase4OrderedSubtests : new[] { testName };
+        var list = new List<TestResult>();
+        foreach (var sub in tests)
+        {
+            list.Add(await RunPhase4OneAsync(sub, textPath, logger, "text").ConfigureAwait(false));
+            list.Add(await RunPhase4OneAsync(sub, binaryPath, logger, "binary").ConfigureAwait(false));
+        }
+
+        return list;
+    }
+
+    private static Task<TestResult> RunPhase4OneAsync(string testName, string dbPath, ResultLogger logger, string storage)
+    {
+        var backend = storage is "binary" ? "binary" : null;
+        return testName switch
+        {
+            "phase4-bind-expr" => Phase4BindExprManualTest.RunAsync(dbPath, backend, logger),
+            "phase4-joins" => Phase4JoinsManualTest.RunAsync(dbPath, backend, logger),
+            "phase4-orderby" => Phase4OrderByManualTest.RunAsync(dbPath, backend, logger),
+            "phase4-groupby" => Phase4GroupByManualTest.RunAsync(dbPath, backend, logger),
+            "phase4-subqueries" => Phase4SubqueriesManualTest.RunAsync(dbPath, backend, logger),
+            _ => Task.FromResult(UnknownTest(testName))
+        };
+    }
+
     private static TestResult UnknownTest(string name)
     {
         Console.Error.WriteLine($"Unknown test: {name}");
-        Console.Error.WriteLine("Valid tests: concurrency, sharding, sharding-varchar, all");
+        Console.Error.WriteLine(
+            "Valid tests: concurrency, sharding, sharding-varchar, all, phase4-bind-expr, phase4-joins, phase4-orderby, phase4-groupby, phase4-subqueries, phase4-all");
         return new TestResult(name, false, TimeSpan.Zero, 0, 0, 1, new[] { $"Unknown test: {name}" }, null);
     }
 
     private static void PrintUsage()
     {
         Console.WriteLine("""
-            SQL.txt Manual Tests - Concurrency, sharding, and performance testing
+            SQL.txt Manual Tests - Concurrency, sharding, Phase 4 query features, performance
 
             Usage:
               dotnet run --project src/SqlTxt.ManualTests -- <test> [options]
@@ -476,13 +564,20 @@ internal static class ManualTestProgram
               concurrency       High concurrency: multi-thread INSERT/UPDATE/DELETE
               sharding          Sharding: insert many rows (fixed-width), measure query speed
               sharding-varchar  Sharding: insert many rows (VARCHAR), verify rebalance
-              all               Run all tests
+              all               Run all legacy tests (concurrency + sharding + sharding-varchar)
+              phase4-bind-expr  Phase 4.1: compound WHERE / expression binding (see docs/plans/Phase4_01_*.md)
+              phase4-joins      Phase 4.2: INNER/LEFT JOIN (Phase4_02_Joins_Execution_Plan.md)
+              phase4-orderby    Phase 4.3: ORDER BY (Phase4_03_OrderBy_Sort_Plan.md)
+              phase4-groupby    Phase 4.4: GROUP BY / aggregates / HAVING (Phase4_04_*.md)
+              phase4-subqueries Phase 4.5: IN / EXISTS / scalar subqueries (Phase4_05_*.md)
+              phase4-all        Run all Phase 4 manual tests in order
 
             Common options:
               --db <path>       Database parent path (default: manual-test-artifacts/run-<timestamp> under repo)
               --log <path>      Log file (default: manual-test-artifacts/logs/ManualTests_<timestamp>.log)
               --storage <type>  text | binary | all (default: text). Use 'all' to compare timings.
               --compare:<db>    Run same test against comparison DB. Use --compare:localdb for SQL Server LocalDB.
+                                Ignored for Phase 4 tests (phase4-*): LocalDB parity does not apply to those scenarios.
               --save-db         Keep database folders after the run (default: delete run dir or WikiDb/VarcharShardingDb/ManualTest_* under --db)
               --verbose        Extra output
 

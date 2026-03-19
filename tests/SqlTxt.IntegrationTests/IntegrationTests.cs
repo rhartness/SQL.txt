@@ -87,6 +87,62 @@ public class IntegrationTests
         }
     }
 
+    /// <summary>
+    /// Phase 3.5: one statement with multiple VALUE rows exercises batched validation, AppendRowsAsync, and per-index-file AddIndexEntriesAsync.
+    /// </summary>
+    [Fact]
+    public async Task Phase35_MultiRowInsert_PkFkAndSecondaryIndex_Works()
+    {
+        var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName}", tempDir);
+            var dbPath = dir;
+
+            await engine.ExecuteAsync("CREATE TABLE User (Id CHAR(5) PRIMARY KEY, Name CHAR(20))", dbPath);
+            await engine.ExecuteAsync("CREATE TABLE Page (Id CHAR(5) PRIMARY KEY, Title CHAR(30), Slug CHAR(30), CreatedById CHAR(5), FOREIGN KEY (CreatedById) REFERENCES User(Id))", dbPath);
+            await engine.ExecuteAsync("CREATE INDEX IX_Page_Slug ON Page(Slug)", dbPath);
+
+            await engine.ExecuteAsync("INSERT INTO User (Id, Name) VALUES ('1', 'Alice')", dbPath);
+
+            var insertResult = await engine.ExecuteAsync(
+                "INSERT INTO Page (Id, Title, Slug, CreatedById) VALUES ('1', 'Home', 'home', '1'), ('2', 'About', 'about', '1'), ('3', 'Contact', 'contact', '1')",
+                dbPath);
+            Assert.Equal(3, insertResult.RowsAffected);
+
+            var all = await engine.ExecuteQueryAsync("SELECT * FROM Page", dbPath);
+            Assert.NotNull(all.QueryResult);
+            Assert.Equal(3, all.QueryResult.Rows.Count);
+
+            foreach (var slug in new[] { "home", "about", "contact" })
+            {
+                var bySlug = await engine.ExecuteQueryAsync($"SELECT * FROM Page WHERE Slug = '{slug}'", dbPath);
+                Assert.NotNull(bySlug.QueryResult);
+                Assert.Single(bySlug.QueryResult.Rows);
+            }
+
+            var dupPk = await Assert.ThrowsAsync<ConstraintViolationException>(
+                () => engine.ExecuteAsync(
+                    "INSERT INTO Page (Id, Title, Slug, CreatedById) VALUES ('4', 'A', 'a', '1'), ('4', 'B', 'b', '1')",
+                    dbPath));
+            Assert.Contains("primary key", dupPk.Message, StringComparison.OrdinalIgnoreCase);
+
+            var badFk = await Assert.ThrowsAsync<ConstraintViolationException>(
+                () => engine.ExecuteAsync(
+                    "INSERT INTO Page (Id, Title, Slug, CreatedById) VALUES ('5', 'X', 'x', '99'), ('6', 'Y', 'y', '1')",
+                    dbPath));
+            Assert.Contains("Foreign key", badFk.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task BinaryStorage_CreateDbWithBinary_CreateTableInsertSelect_Works()
     {

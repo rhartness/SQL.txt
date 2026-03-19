@@ -86,7 +86,7 @@ Omitting `--db` uses `manual-test-artifacts/run-<timestamp>/`. Omitting `--log` 
 - [Post-Phase 3 Features](docs/specifications/02_Post_Phase3_Features.md) — Views, procedures, functions, and more
 - [Architecture](docs/architecture/) — System design and storage format
 - [Sample Wiki Database](docs/samples/wiki-database.md) — Example schema and scripts
-- [Plans](docs/plans/) — Implementation plans
+- [Plans](docs/plans/) — Implementation plans ([Phase 4 master](docs/plans/Phase4_Implementation_Plan.md), [Phase 3.5](docs/plans/Phase3_5_Storage_Efficiency_Plan.md), …)
 - [SQL:2023 Compliance Roadmap](docs/roadmap/00-sql2023-compliance-roadmap.md) — Full SQL:2023 feature mapping and deferred features
 - [SQL:2023 Feature Registry](docs/roadmap/01-sql2023-feature-registry.md) — Complete feature list with phase assignments and spec references
 
@@ -102,8 +102,8 @@ SQL.txt is built in phases toward **100% SQL:2023 compliance per phase**: start 
 | **Storage Abstraction** | Done | `--storage:text` \| `--storage:binary` at database creation |
 | **Phase 3** | Done | VARCHAR, variable-width fields, storage evolution; SQL:2023 T055/T056/T062/T081 |
 | **In-Memory Data Management** | Done | Index/metadata cache, CachingFileSystemAccessor (LRU), load-into-memory mode (`--memory` / `--persist`) |
-| **Phase 3.5** | Next | Storage & ingest efficiency: true append I/O, batched multi-row INSERT (validation + index writes), sorted on-disk indexes per ADR-008; physical layout may use non-linear structures for speed |
-| **Phase 4** | After 3.5 | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 |
+| **Phase 3.5** | Done | Storage & ingest efficiency: true append I/O, batched multi-row INSERT (validation + index writes), sorted on-disk indexes per ADR-008; physical layout may use non-linear structures for speed |
+| **Phase 4** | Next | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 — [master plan](docs/plans/Phase4_Implementation_Plan.md) (enterprise-grade operators, per-feature sub-plans) |
 | **CTE Phase** | Planned | WITH clause, recursive CTE; SQL:2023 |
 | **Phase 5** | Planned | ALTER TABLE, transactions; SQL:2023 |
 | **Phase 6** | Planned | Views, stored procedures, functions; SQL:2023 |

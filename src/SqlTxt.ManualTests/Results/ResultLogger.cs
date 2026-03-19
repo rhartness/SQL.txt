@@ -35,7 +35,10 @@ public sealed class ResultLogger : IDisposable
 
     public void LogResult(TestResult result)
     {
-        var status = result.Passed ? "PASSED" : "FAILED";
+        var skipped = result.Details != null
+            && result.Details.TryGetValue("Skipped", out var sk)
+            && sk is true;
+        var status = skipped ? "SKIPPED" : result.Passed ? "PASSED" : "FAILED";
         var storageLabel = result.StorageType is not null ? $" [{result.StorageType}]" : "";
         Log($"--- {result.TestName}{storageLabel} ---");
         Log($"Status: {status}");
@@ -126,7 +129,10 @@ public sealed class ResultLogger : IDisposable
 
         foreach (var r in results)
         {
+            var skipped = r.Details != null && r.Details.TryGetValue("Skipped", out var sk) && sk is true;
             var testRun = r.StorageType is not null ? $"{r.TestName} [{r.StorageType}]" : r.TestName;
+            if (skipped)
+                testRun += " (skip)";
             var totalMs = r.Duration.TotalMilliseconds;
             var avgOpMs = GetPrimaryAvgMs(r);
             var execMs = totalMs;

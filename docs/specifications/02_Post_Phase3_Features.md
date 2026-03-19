@@ -46,12 +46,23 @@ Each feature maps to SQL:2023 (ISO/IEC 9075-2:2023) feature IDs. See [01-sql2023
 
 Foundation for Views and complex procedures. Extends the SELECT engine beyond single-table scans.
 
+**Implementation and efficiency:** Phase 4 is specified for **high-throughput, enterprise-grade** behavior on single-node embedded workloads. Implementations must follow [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md) and the **master plan** [Phase4_Implementation_Plan.md](../plans/Phase4_Implementation_Plan.md), which rejects naive “easy path”-only designs (e.g. unbounded in-memory sort, single nested-loop join for every query, uncached correlated re-execution). Work is split into **feature plans** that each define algorithms, spill/budget rules, and acceptance tests:
+
+| Topic | Plan |
+|-------|------|
+| Query IR, binding, expressions | [Phase4_01_Query_IR_and_Expressions_Plan.md](../plans/Phase4_01_Query_IR_and_Expressions_Plan.md) |
+| JOIN physical operators (INL, hash, merge; spill) | [Phase4_02_Joins_Execution_Plan.md](../plans/Phase4_02_Joins_Execution_Plan.md) |
+| ORDER BY, top-N, external sort | [Phase4_03_OrderBy_Sort_Plan.md](../plans/Phase4_03_OrderBy_Sort_Plan.md) |
+| GROUP BY, aggregates, HAVING, T626, F868 | [Phase4_04_GroupBy_Aggregates_Plan.md](../plans/Phase4_04_GroupBy_Aggregates_Plan.md) |
+| Subqueries, decorrelation, semi/anti-join | [Phase4_05_Subqueries_Decorrelation_Plan.md](../plans/Phase4_05_Subqueries_Decorrelation_Plan.md) |
+
 ### 4.1 JOINs
 
 **Syntax**
 
 - `INNER JOIN` — Rows matching on join condition
 - `LEFT [OUTER] JOIN` — All rows from left table; matching rows from right (or NULL)
+- `FULL OUTER JOIN`, `CROSS JOIN`, `NATURAL JOIN` — SQL:2023 F406, F407, F405 (see registry); detailed execution in join plan
 
 **Example**
 
@@ -65,15 +76,16 @@ FROM Users u
 LEFT JOIN Orders o ON u.Id = o.UserId;
 ```
 
-**Execution model**
+**Execution model (required direction)**
 
-- Nested-loop join or hash join (implementation choice)
-- Join condition: equality on column(s)
+- **Multiple physical operators:** index nested loop, **hash join** (with **partition spill** under memory budget), **merge join** when inputs are ordered on join keys—not a single algorithm for all cases.
+- **Planning:** Heuristic cost/choice rules in v1 with a **statistics hook** for Phase 7; join condition: equality on column(s) first; extensions per join plan.
+- **I/O:** Streaming reads through existing table/index access paths; preserve MVCC snapshot and `WITH (NOLOCK)` semantics.
 
 **Scope**
 
-- Two-table joins initially; multi-table joins (A JOIN B JOIN C) as extension
-- JOIN ON only; no USING in initial scope
+- Two-table joins first; **multi-way** `A JOIN B JOIN C` as binary join tree per [Phase4_02](../plans/Phase4_02_Joins_Execution_Plan.md)
+- `JOIN ... ON` required for explicit joins; NATURAL desugars to `ON` list
 
 ### 4.2 Aggregates
 
@@ -85,6 +97,7 @@ LEFT JOIN Orders o ON u.Id = o.UserId;
 - `AVG(column)` — Average of numeric column
 - `MIN(column)` — Minimum value
 - `MAX(column)` — Maximum value
+- `ANY_VALUE(expr)` — T626 where required for grouped queries (see [Phase4_04](../plans/Phase4_04_GroupBy_Aggregates_Plan.md))
 
 **Example**
 
@@ -92,6 +105,10 @@ LEFT JOIN Orders o ON u.Id = o.UserId;
 SELECT COUNT(*) FROM Users;
 SELECT UserId, COUNT(*) FROM Orders GROUP BY UserId;
 ```
+
+**Execution model (required direction)**
+
+- **Hash aggregate** default for large grouping cardinality; **stream/sort aggregate** when input ordered on group keys; **spill** when work memory exceeded. See [Phase4_04](../plans/Phase4_04_GroupBy_Aggregates_Plan.md).
 
 ### 4.3 ORDER BY
 
@@ -106,6 +123,11 @@ SELECT UserId, COUNT(*) FROM Orders GROUP BY UserId;
 SELECT Id, Name FROM Users ORDER BY Name ASC;
 SELECT Id, Name FROM Users ORDER BY Name DESC, Id ASC;
 ```
+
+**Execution model (required direction)**
+
+- **Eliminate sort** via **index-order** scan when keys match an index/PK order.
+- Otherwise **in-memory sort** within a **bounded budget**, or **external sort** (k-way merge of spilled runs). **Top-N / heap** when a limit is present or added later. See [Phase4_03](../plans/Phase4_03_OrderBy_Sort_Plan.md).
 
 ### 4.4 GROUP BY
 
@@ -127,6 +149,10 @@ GROUP BY UserId
 HAVING COUNT(*) > 5;
 ```
 
+**Execution model (required direction)**
+
+- Same aggregate operators as §4.2; **F868** (ORDER BY with grouped table) implemented consistently with chosen SQL rules—coordinate with [Phase4_03](../plans/Phase4_03_OrderBy_Sort_Plan.md) and [Phase4_04](../plans/Phase4_04_GroupBy_Aggregates_Plan.md).
+
 ### 4.5 Subqueries
 
 **Forms**
@@ -147,6 +173,10 @@ SELECT Id, (SELECT COUNT(*) FROM Orders WHERE UserId = Users.Id) AS OrderCount F
 
 - Scalar subqueries must return exactly one row (or NULL)
 - Correlated subqueries supported
+
+**Execution model (required direction)**
+
+- **Decorrelate** to semi-join / anti-join where possible; **uncorrelated** inner executed once; **batched** or **cached apply** when decorrelation is not possible—not sole reliance on per-outer-row full inner re-scan. See [Phase4_05](../plans/Phase4_05_Subqueries_Decorrelation_Plan.md).
 
 ---
 

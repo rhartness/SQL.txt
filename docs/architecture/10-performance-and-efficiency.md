@@ -121,3 +121,4 @@ Three complementary layers reduce disk I/O:
 - [06-durability-and-sharding.md](06-durability-and-sharding.md) — Sharding, error handling
 - [Efficiency_Audit_Methodology.md](../plans/Efficiency_Audit_Methodology.md) — Audit process for existing code
 - [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md) — Phase 3.5 ingest and index efficiency
+- [Phase4_Implementation_Plan.md](../plans/Phase4_Implementation_Plan.md) — Phase 4 query operators: memory budgets, spill, join/sort/aggregate algorithms (see sub-plans there)

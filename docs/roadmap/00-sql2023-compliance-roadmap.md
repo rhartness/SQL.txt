@@ -40,8 +40,8 @@ Phases execute in this order:
 | Phase 1 | Core DML/DDL (CREATE TABLE, INSERT, SELECT, UPDATE, DELETE); fixed-width types | Done |
 | Phase 2 | PRIMARY KEY, FOREIGN KEY, UNIQUE, CREATE INDEX | Done |
 | Phase 3 | VARCHAR, T055 (LPAD, RPAD), T056 (multi-char TRIM), T062 (CHAR_LENGTH, OCTET_LENGTH), T081 (optional VARCHAR max) | Done |
-| Phase 3.5 | INSERT execution efficiency (batched validation/writes, sorted index files); see [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md) | Next |
-| Phase 4 | F401 (JOIN), F406 (FULL OUTER), F407 (CROSS), F405 (NATURAL); aggregates; ORDER BY, GROUP BY, HAVING; subqueries; T626 (ANY_VALUE) | After 3.5 |
+| Phase 3.5 | INSERT execution efficiency (batched validation/writes, sorted index files); see [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md) | Done |
+| Phase 4 | F401 (JOIN), F406 (FULL OUTER), F407 (CROSS), F405 (NATURAL); aggregates; ORDER BY, GROUP BY, HAVING; subqueries; T626 (ANY_VALUE) | Next |
 | CTE Phase | WITH clause; recursive CTE | Planned |
 | Phase 5 | F387 (ALTER COLUMN), F388 (ADD/DROP CONSTRAINT, RENAME); F112–F114 (isolation levels) | Planned |
 | Phase 6 | CREATE VIEW; CREATE PROCEDURE; CREATE FUNCTION | Planned |
