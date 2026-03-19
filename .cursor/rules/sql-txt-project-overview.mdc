@@ -81,4 +81,4 @@ alwaysApply: true
 
 ## Reference
 
-See [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md) for full specification. See [docs/specifications/02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md) for post-Phase 3 roadmap. For performance and efficiency requirements, see [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md). SQL:2023 mapping: [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md).
+See [docs/specifications/01_Initial_Creation.md](docs/specifications/01_Initial_Creation.md) for full specification. See [docs/specifications/02_Post_Phase3_Features.md](docs/specifications/02_Post_Phase3_Features.md) for post-Phase 3 roadmap. For performance and efficiency requirements, see [docs/architecture/10-performance-and-efficiency.md](docs/architecture/10-performance-and-efficiency.md). SQL:2023 mapping: [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md). Full SQL:2023 feature list: [docs/roadmap/01-sql2023-feature-registry.md](docs/roadmap/01-sql2023-feature-registry.md).

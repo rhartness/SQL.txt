@@ -39,8 +39,14 @@ public sealed class ResultLogger : IDisposable
         var storageLabel = result.StorageType is not null ? $" [{result.StorageType}]" : "";
         Log($"--- {result.TestName}{storageLabel} ---");
         Log($"Status: {status}");
-        Log($"Duration: {result.Duration.TotalMilliseconds:F2} ms");
+        Log($"Total duration: {result.Duration.TotalMilliseconds:F2} ms");
         Log($"Operations: {result.OperationsCount} total, {result.SuccessCount} success, {result.FailureCount} failed");
+
+        if (result.Details != null)
+        {
+            LogStepMetrics(result.Details);
+            LogOtherDetails(result.Details);
+        }
 
         if (result.Exceptions.Count > 0)
         {
@@ -49,13 +55,111 @@ public sealed class ResultLogger : IDisposable
                 Log($"  - {ex}");
         }
 
-        if (result.Details != null)
+        Log(string.Empty);
+    }
+
+    private void LogStepMetrics(IReadOnlyDictionary<string, object> details)
+    {
+        var stepKeys = details.Keys.Where(k => k.StartsWith("Step_", StringComparison.Ordinal) && k.EndsWith("_Ms", StringComparison.Ordinal)).ToList();
+        if (stepKeys.Count == 0) return;
+
+        Log("Step timings:");
+        foreach (var key in stepKeys.OrderBy(k => k))
         {
-            foreach (var (key, value) in result.Details)
-                Log($"  {key}: {value}");
+            var stepName = key[5..^3].Replace("_", " ");
+            var ms = details[key];
+            var msStr = ms is double d ? $"{d:F2}" : ms is long l ? $"{l:F2}" : ms?.ToString() ?? "-";
+            var countKey = key[..^3] + "_Count";
+            var countStr = details.TryGetValue(countKey, out var c) && c is int cnt ? $" ({cnt} ops)" : "";
+            Log($"  {stepName}: {msStr} ms{countStr}");
         }
 
+        var avgKeys = details.Keys.Where(k => k.StartsWith("Avg_", StringComparison.Ordinal) && k.EndsWith("_Ms", StringComparison.Ordinal)).ToList();
+        if (avgKeys.Count > 0)
+        {
+            Log("Averages (per operation):");
+            foreach (var key in avgKeys.OrderBy(k => k))
+            {
+                var opName = key[4..^3].Replace("_", " ");
+                var ms = details[key];
+                var msStr = ms is double d ? $"{d:F2}" : ms is long l ? $"{l:F2}" : ms?.ToString() ?? "-";
+                Log($"  {opName}: {msStr} ms avg");
+            }
+        }
+    }
+
+    private void LogOtherDetails(IReadOnlyDictionary<string, object> details)
+    {
+        var skipKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var k in details.Keys)
+        {
+            if (k.StartsWith("Step_", StringComparison.Ordinal) || k.StartsWith("Avg_", StringComparison.Ordinal))
+                skipKeys.Add(k);
+        }
+
+        foreach (var (key, value) in details.Where(kv => !skipKeys.Contains(kv.Key)).OrderBy(kv => kv.Key))
+            Log($"  {key}: {value}");
+    }
+
+    /// <summary>
+    /// Logs a summarized fixed-width table: one line per test/storage pair.
+    /// Columns: Test Run, Total (ms), Avg/op (ms), Exec (ms).
+    /// </summary>
+    public void LogSummaryTable(IReadOnlyList<TestResult> results)
+    {
+        if (results.Count == 0) return;
+
+        const int colTestRun = 28;
+        const int colTotal = 14;
+        const int colAvgOp = 14;
+        const int colExec = 14;
+        const int totalWidth = colTestRun + colTotal + colAvgOp + colExec + 9;
+
+        var header = $"{"Test Run",-colTestRun} | {"Total (ms)",colTotal} | {"Avg/op (ms)",colAvgOp} | {"Exec (ms)",colExec}";
+        var separator = new string('-', totalWidth);
+
         Log(string.Empty);
+        Log("=== Results Summary ===");
+        Log(separator);
+        Log(header);
+        Log(separator);
+
+        foreach (var r in results)
+        {
+            var testRun = r.StorageType is not null ? $"{r.TestName} [{r.StorageType}]" : r.TestName;
+            var totalMs = r.Duration.TotalMilliseconds;
+            var avgOpMs = GetPrimaryAvgMs(r);
+            var execMs = totalMs;
+
+            var line = $"{testRun,-colTestRun} | {totalMs,colTotal:F2} | {avgOpMs,colAvgOp:F2} | {execMs,colExec:F2}";
+            Log(line);
+        }
+
+        Log(separator);
+        if (results.Count > 1)
+        {
+            var grandTotal = results.Sum(r => r.Duration.TotalMilliseconds);
+            var totalLine = $"{"TOTAL",-colTestRun} | {grandTotal,colTotal:F2} | {"-",colAvgOp} | {grandTotal,colExec:F2}";
+            Log(totalLine);
+            Log(separator);
+        }
+        Log(string.Empty);
+    }
+
+    private static double GetPrimaryAvgMs(TestResult r)
+    {
+        if (r.Details == null) return 0;
+        var avgKeys = r.Details.Keys
+            .Where(k => k.StartsWith("Avg_", StringComparison.Ordinal) && k.EndsWith("_Ms", StringComparison.Ordinal))
+            .OrderBy(k => k)
+            .ToList();
+        if (avgKeys.Count == 0) return 0;
+        var values = avgKeys
+            .Select(k => r.Details[k])
+            .Select(v => v is double d ? d : v is long l ? (double)l : 0)
+            .Where(x => x > 0)
+            .ToList();
+        return values.Count > 0 ? values.Average() : 0;
     }
 
     /// <summary>
@@ -64,32 +168,7 @@ public sealed class ResultLogger : IDisposable
     public void LogComparisonTable(IReadOnlyList<TestResult> results)
     {
         if (results.Count == 0) return;
-
-        const int colTest = 24;
-        const int colStorage = 10;
-        const int colStatus = 8;
-        const int colDuration = 14;
-        const int colOps = 10;
-        const int colSuccess = 10;
-        const int colFail = 8;
-
-        var header = $"{"Test",-colTest} {"Storage",-colStorage} {"Status",-colStatus} {"Duration(ms)",-colDuration} {"Ops",-colOps} {"Success",-colSuccess} {"Fail",-colFail}";
-        var separator = new string('-', colTest + colStorage + colStatus + colDuration + colOps + colSuccess + colFail + 6);
-
-        Log("=== Results Comparison (text vs binary) ===");
-        Log(header);
-        Log(separator);
-
-        foreach (var r in results)
-        {
-            var storage = r.StorageType ?? "-";
-            var status = r.Passed ? "PASS" : "FAIL";
-            var line = $"{r.TestName,-colTest} {storage,-colStorage} {status,-colStatus} {r.Duration.TotalMilliseconds,12:F2} {r.OperationsCount,8} {r.SuccessCount,8} {r.FailureCount,6}";
-            Log(line);
-        }
-
-        Log(separator);
-        Log(string.Empty);
+        LogSummaryTable(results);
     }
 
     public void Dispose()

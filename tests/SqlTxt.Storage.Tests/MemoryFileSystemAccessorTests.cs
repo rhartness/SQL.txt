@@ -151,4 +151,34 @@ public class MemoryFileSystemAccessorTests
         _fs.CreateDirectory("a\\b\\c");
         Assert.True(_fs.DirectoryExists("a/b/c"));
     }
+
+    [Fact]
+    public async Task OpenReadStreamAsync_ReturnsStreamWithContent()
+    {
+        _fs.CreateDirectory("data");
+        var bytes = new byte[] { 1, 2, 3, 4, 5 };
+        await _fs.WriteAllBytesAsync("data/binary.bin", bytes);
+
+        var stream = await _fs.OpenReadStreamAsync("data/binary.bin");
+        await using (stream)
+        {
+            var read = new byte[5];
+            var n = await stream.ReadAsync(read);
+            Assert.Equal(5, n);
+            Assert.Equal(bytes, read);
+        }
+    }
+
+    [Fact]
+    public async Task OpenWriteStreamAsync_CapturesContentOnDispose()
+    {
+        _fs.CreateDirectory("out");
+        var stream = await _fs.OpenWriteStreamAsync("out/new.bin");
+        await using (stream)
+        {
+            await stream.WriteAsync(new byte[] { 10, 20, 30 });
+        }
+        var content = await _fs.ReadAllBytesAsync("out/new.bin");
+        Assert.Equal(new byte[] { 10, 20, 30 }, content);
+    }
 }

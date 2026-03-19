@@ -75,10 +75,11 @@ dotnet test
 - [Sample Wiki Database](docs/samples/wiki-database.md) — Example schema and scripts
 - [Plans](docs/plans/) — Implementation plans
 - [SQL:2023 Compliance Roadmap](docs/roadmap/00-sql2023-compliance-roadmap.md) — Full SQL:2023 feature mapping and deferred features
+- [SQL:2023 Feature Registry](docs/roadmap/01-sql2023-feature-registry.md) — Complete feature list with phase assignments and spec references
 
 ## Roadmap
 
-SQL.txt is built in phases toward **100% SQL:2023 compliance per phase**: start with a working engine and core CRUD, add relational features (indexes, keys, constraints), evolve storage for variable-width data, extend with query enrichment, schema evolution, and programmability. Each phase implements all applicable SQL:2023 features for its scope. See [SQL:2023 Compliance Roadmap](docs/roadmap/00-sql2023-compliance-roadmap.md) for full feature mapping.
+SQL.txt is built in phases toward **100% SQL:2023 compliance per phase**: start with a working engine and core CRUD, add relational features (indexes, keys, constraints), evolve storage for variable-width data, extend with query enrichment, schema evolution, and programmability. Each phase implements all applicable SQL:2023 features for its scope. See [SQL:2023 Compliance Roadmap](docs/roadmap/00-sql2023-compliance-roadmap.md) for execution order and [SQL:2023 Feature Registry](docs/roadmap/01-sql2023-feature-registry.md) for the complete feature list.
 
 | Phase | Status | Scope |
 |-------|--------|-------|

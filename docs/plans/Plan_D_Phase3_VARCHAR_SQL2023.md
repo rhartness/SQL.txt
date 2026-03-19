@@ -1,10 +1,34 @@
 # Plan D: Phase 3 — VARCHAR and String Types (SQL:2023)
 
-**Status:** Pending  
+**Status:** Done  
 **Parent:** Enterprise SQL:2023 Meta-Plan  
-**Prerequisites:** Plan C complete (or Plan B if binary deferred)
+**Prerequisites:** Plan C complete (or Plan B if binary deferred)  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation — Clause 6 (Data types), 9 (Scalar expressions)
 
 **Reference:** [docs/specifications/01_Initial_Creation.md](../specifications/01_Initial_Creation.md) Phase 3, [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature ID | Name | Status |
+|------------|------|--------|
+| Core | VARCHAR | Done |
+| T055 | String padding (LPAD, RPAD) | Done |
+| T056 | Multi-character TRIM | Done |
+| T062 | CHAR_LENGTH, OCTET_LENGTH | Done |
+| T081 | Optional VARCHAR max length | Done |
+| T054 | GREATEST, LEAST | Enhancement |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## Compliance Checklist
+
+- [x] VARCHAR(n), VARCHAR (T081)
+- [x] LPAD, RPAD (T055)
+- [x] TRIM with multi-char (T056)
+- [x] CHAR_LENGTH, OCTET_LENGTH (T062)
+- [ ] T054 GREATEST, LEAST (optional enhancement)
 
 ---
 

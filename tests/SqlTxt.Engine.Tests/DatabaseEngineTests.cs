@@ -52,6 +52,29 @@ public class DatabaseEngineTests
     }
 
     [Fact]
+    public async Task Execute_CreateDatabase_WithTextEncodingUtf8_StoresInManifest()
+    {
+        var dbName = "SqlTxtEngine_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName} WITH (textEncoding='utf-8')", tempDir);
+            var manifestPath = Path.Combine(dir, "db", "manifest.json");
+            Assert.True(File.Exists(manifestPath));
+            var json = await File.ReadAllTextAsync(manifestPath);
+            Assert.Contains("\"textEncoding\"", json);
+            Assert.Contains("\"utf-8\"", json);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Execute_CreateTableInsertSelect_EndToEnd()
     {
         var dbName = "SqlTxtEngine_" + Guid.NewGuid().ToString("N")[..8];

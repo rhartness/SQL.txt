@@ -40,7 +40,7 @@ Accepted
 
 ### 7. Text Encoding
 
-**Decision:** Only **fixed-width** encodings allowed. Each character must map to a fixed number of bytes. No UTF-8 or other variable-length encodings. Parameter at database creation.
+**Decision:** **UTF-8 is supported** for the text backend. Fixed-width encodings (ASCII, Latin-1, UTF-16, UTF-32) remain supported for legacy compatibility. Parameter at database creation (`textEncoding`). UTF-8 is variable-length (1–4 bytes per character); line-delimited row format still enables line-by-line streaming. For byte-offset seekability, fixed-width encodings may be preferred; document trade-offs in storage format docs.
 
 ### 8. Sharding
 

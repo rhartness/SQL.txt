@@ -2,9 +2,34 @@
 
 **Status:** Pending  
 **Parent:** Enterprise SQL:2023 Meta-Plan  
-**Prerequisites:** Plan F complete
+**Prerequisites:** Plan F complete  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation — Clause 11 (Schema manipulation), 15 (Transaction management)
 
 **Reference:** [docs/specifications/02_Post_Phase3_Features.md](../specifications/02_Post_Phase3_Features.md), [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature ID | Name | Status |
+|------------|------|--------|
+| F387 | ALTER TABLE: ALTER COLUMN (ADD/DROP COLUMN) | Planned |
+| F388 | ALTER TABLE: ADD/DROP CONSTRAINT, RENAME | Planned |
+| F112 | Isolation level READ UNCOMMITTED | Planned |
+| F113 | Isolation level READ COMMITTED | Planned |
+| F114 | Isolation level REPEATABLE READ | Planned |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## Compliance Checklist
+
+- [ ] ALTER TABLE ADD COLUMN
+- [ ] ALTER TABLE DROP COLUMN
+- [ ] ALTER TABLE RENAME COLUMN
+- [ ] ALTER TABLE RENAME TO
+- [ ] ALTER TABLE ADD/DROP CONSTRAINT
+- [ ] BEGIN TRANSACTION, COMMIT, ROLLBACK
+- [ ] F112–F114 isolation levels
 
 ---
 

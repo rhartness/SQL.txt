@@ -29,10 +29,11 @@ Each table uses `MaxShardSize` (from table definition or database default). When
 
 ## Text Encoding
 
-**Only fixed-width encodings.** Each character = fixed number of bytes in the file.
+**UTF-8 is supported** for the text backend. Fixed-width encodings are also supported.
 
-- **Allowed:** ASCII, Latin-1 (ISO-8859-1), UTF-16, UTF-32, other fixed-byte-per-char encodings
-- **Not allowed:** UTF-8 (variable 1–4 bytes per character)
+- **Allowed:** UTF-8, ASCII, Latin-1 (ISO-8859-1), UTF-16, UTF-32, other fixed-byte-per-char encodings
+- **UTF-8 trade-offs:** Variable 1–4 bytes per character; byte-offset seekability is harder. Line-delimited row format still enables line-by-line streaming. For international text and modern compatibility, UTF-8 is preferred.
+- **Fixed-width trade-offs:** Each character = fixed bytes; enables byte-offset seekability. Use for legacy or when seekability is critical.
 
 Parameter at database creation: `TextEncoding` or `TextFormat`.
 

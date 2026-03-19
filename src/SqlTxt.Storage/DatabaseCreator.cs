@@ -39,12 +39,13 @@ public sealed class DatabaseCreator
 
         var effectiveDefault = defaultMaxShardSize ?? 20_971_520; // 20 MB default per ADR-007
         var effectiveBackend = NormalizeStorageBackend(storageBackend) ?? "text";
+        var effectiveEncoding = NormalizeTextEncoding(textEncoding) ?? "ascii";
         var manifest = new
         {
             engineVersion = "0.1.0",
             storageFormatVersion = 1,
             numberFormat = numberFormat ?? "standard",
-            textEncoding = textEncoding ?? "ascii",
+            textEncoding = effectiveEncoding,
             defaultMaxShardSize = effectiveDefault,
             storageBackend = effectiveBackend
         };
@@ -105,6 +106,20 @@ public sealed class DatabaseCreator
             return null;
         var v = value.Trim().ToLowerInvariant();
         return v is "text" or "binary" ? v : null;
+    }
+
+    /// <summary>
+    /// Normalizes text encoding for manifest storage. Accepts utf-8, utf8 (case-insensitive) and returns canonical "utf-8".
+    /// Other values (e.g. ascii) are returned as-is.
+    /// </summary>
+    private static string? NormalizeTextEncoding(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+        var v = value.Trim();
+        if (v.Equals("utf8", StringComparison.OrdinalIgnoreCase) || v.Equals("utf-8", StringComparison.OrdinalIgnoreCase))
+            return "utf-8";
+        return v;
     }
 
     /// <summary>

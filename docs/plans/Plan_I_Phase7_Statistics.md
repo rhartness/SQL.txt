@@ -2,9 +2,30 @@
 
 **Status:** Pending  
 **Parent:** Enterprise SQL:2023 Meta-Plan  
-**Prerequisites:** Plan H complete
+**Prerequisites:** Plan H complete  
+**Spec Reference:** Implementation-defined (no direct SQL:2023 equivalent); [adr-006-statistics-design.md](../decisions/adr-006-statistics-design.md)
 
 **Reference:** [docs/decisions/adr-006-statistics-design.md](../decisions/adr-006-statistics-design.md), [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature ID | Name | Status |
+|------------|------|--------|
+| Impl | CREATE STATISTICS | Planned |
+| — | Histograms | Planned |
+| — | Cardinality estimation | Planned |
+
+**Note:** CREATE STATISTICS is implementation-defined; no direct SQL:2023 feature ID. See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md).
+
+## Compliance Checklist
+
+- [ ] CREATE STATISTICS name ON table (columns)
+- [ ] DROP STATISTICS
+- [ ] Histogram storage in ~System
+- [ ] Cardinality estimation for optimizer
+- [ ] Integration with Phase 4 query optimizer
 
 ---
 

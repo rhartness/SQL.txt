@@ -32,6 +32,7 @@ public static class ShardingTest
             if (Directory.Exists(wikiDbPath))
                 Directory.Delete(wikiDbPath, recursive: true);
 
+            var setupSw = Stopwatch.StartNew();
             logger?.Log($"Creating database with Page table (maxShardSize for ~{desiredShards} shards, storage: {storageBackend ?? "text"})...");
 
             var createDbSql = storageBackend is "binary"
@@ -58,6 +59,8 @@ public static class ShardingTest
             await engine.ExecuteAsync(
                 "INSERT INTO User (Id, Username, Email, CreatedAt) VALUES ('1', 'admin', 'admin@wiki.local', '2026-03-17T12:00:00Z')",
                 wikiDbPath, cancellationToken).ConfigureAwait(false);
+            setupSw.Stop();
+            details["Step_Setup_Ms"] = setupSw.Elapsed.TotalMilliseconds;
 
             logger?.Log($"Inserting {rowCount} Page rows (batch INSERT)...");
             var insertSw = Stopwatch.StartNew();
@@ -67,7 +70,10 @@ public static class ShardingTest
                 "INSERT INTO Page (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES " + values,
                 wikiDbPath, cancellationToken).ConfigureAwait(false);
             insertSw.Stop();
-            details["InsertDurationMs"] = insertSw.ElapsedMilliseconds;
+            var insertMs = insertSw.Elapsed.TotalMilliseconds;
+            details["Step_Insert_Ms"] = insertMs;
+            details["Step_Insert_Count"] = rowCount;
+            details["Avg_Insert_Ms"] = rowCount > 0 ? insertMs / rowCount : 0;
 
             var tablesPath = Path.Combine(wikiDbPath, "Tables", "Page");
             var shardCount = 0;
@@ -86,37 +92,31 @@ public static class ShardingTest
 
             logger?.Log($"Shard files: {shardCount}");
 
-            var queryTimings = new List<long>();
-
             // Full table scan
             var q1Sw = Stopwatch.StartNew();
             await engine.ExecuteQueryAsync("SELECT * FROM Page", wikiDbPath, cancellationToken).ConfigureAwait(false);
             q1Sw.Stop();
-            queryTimings.Add(q1Sw.ElapsedMilliseconds);
-            details["QueryFullScanMs"] = q1Sw.ElapsedMilliseconds;
+            details["Step_Query_FullScan_Ms"] = q1Sw.Elapsed.TotalMilliseconds;
 
             // Lookup by primary key (Id)
             var midId = rowCount / 2;
             var q2Sw = Stopwatch.StartNew();
             await engine.ExecuteQueryAsync($"SELECT * FROM Page WHERE Id = '{midId}'", wikiDbPath, cancellationToken).ConfigureAwait(false);
             q2Sw.Stop();
-            queryTimings.Add(q2Sw.ElapsedMilliseconds);
-            details["QueryByIdMs"] = q2Sw.ElapsedMilliseconds;
+            details["Step_Query_ById_Ms"] = q2Sw.Elapsed.TotalMilliseconds;
 
             // Lookup by indexed column (Slug)
             var midSlug = rowCount / 2;
             var q3Sw = Stopwatch.StartNew();
             await engine.ExecuteQueryAsync($"SELECT * FROM Page WHERE Slug = 'page-{midSlug}'", wikiDbPath, cancellationToken).ConfigureAwait(false);
             q3Sw.Stop();
-            queryTimings.Add(q3Sw.ElapsedMilliseconds);
-            details["QueryBySlugMs"] = q3Sw.ElapsedMilliseconds;
+            details["Step_Query_BySlug_Ms"] = q3Sw.Elapsed.TotalMilliseconds;
 
             // Group-by style: all rows for a given CreatedById (indexed FK)
             var q4Sw = Stopwatch.StartNew();
             await engine.ExecuteQueryAsync("SELECT * FROM Page WHERE CreatedById = '1'", wikiDbPath, cancellationToken).ConfigureAwait(false);
             q4Sw.Stop();
-            queryTimings.Add(q4Sw.ElapsedMilliseconds);
-            details["QueryByGroupMs"] = q4Sw.ElapsedMilliseconds;
+            details["Step_Query_ByGroup_Ms"] = q4Sw.Elapsed.TotalMilliseconds;
         }
         catch (Exception ex)
         {

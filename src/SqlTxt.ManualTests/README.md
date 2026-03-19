@@ -65,23 +65,39 @@ dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --storage 
 dotnet run --project src/SqlTxt.ManualTests -- all --db ./TestDb --storage all --log ./results.log
 ```
 
+## Results Output
+
+The final output is a summarized fixed-width text table, one line per test/storage pair:
+
+```
+=== Results Summary ===
+-------------------------------------------------------------------------------
+Test Run                     |     Total (ms) |    Avg/op (ms) |      Exec (ms)
+-------------------------------------------------------------------------------
+High Concurrency [text]      |         518.65 |          33.40 |         518.65
+Sharding [text]              |         523.16 |           7.04 |         523.16
+Sharding [binary]            |         312.48 |           8.13 |         312.48
+-------------------------------------------------------------------------------
+TOTAL                        |         726.55 |              - |         726.55
+-------------------------------------------------------------------------------
+```
+
+| Column | Description |
+|--------|-------------|
+| Test Run | Test name and storage type (e.g., `Sharding [text]`) |
+| Total (ms) | Wall-clock duration for that test |
+| Avg/op (ms) | Average time per operation in a batch (e.g., avg INSERT ms) |
+| Exec (ms) | Execution time (same as Total for each row) |
+
+Use `--verbose` to also see detailed step timings and per-operation averages for each test.
+
 ## Log File
 
 - Location: `ManualTests_<timestamp>.log` by default, or `--log <path>`
 - Format: Human-readable (not JSON) for quick inspection
-- Contents: Timestamp, test name, parameters, results, exceptions
+- Contents: Timestamp, test name, parameters, results, step timings, averages, exceptions
 
-When `--storage all` is used, a comparison table is written first:
-
-```
-=== Results Comparison (text vs binary) ===
-Test                     Storage    Status   Duration(ms)       Ops    Success       Fail
-----------------------------------------------------------------------------------------
-High Concurrency         text       PASS        1234.56          400        400        0
-High Concurrency         binary     PASS        1098.12          400        400        0
-Sharding                 text       PASS         567.89          504        504        0
-Sharding                 binary     PASS         432.10          504        504        0
-```
+When `--storage all` is used, the summary table includes one row per test/storage pair (e.g., Sharding [text], Sharding [binary]) plus a TOTAL row.
 
 ## Extensibility
 

@@ -1,15 +1,45 @@
-# Phase 2 Implementation Plan
+# Phase 2 — Integrity and Indexes
 
 This plan implements **Phase 2**: Indexes, PK/FK, constraints, relational metadata, full lock manager, WITH (NOLOCK), and SqlTxt.Service.
+
+**Status:** Done  
+**Prerequisites:** Phase 1 complete  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation — Clause 11 (Constraints)
 
 **Reference:** [docs/specifications/01_Initial_Creation.md](../specifications/01_Initial_Creation.md) (Phase 2 section, lines 888-1022)  
 **Storage format:** [docs/architecture/02-storage-format.md](../architecture/02-storage-format.md)  
 **SQL:2023 mapping:** [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)  
+**Feature registry:** [docs/roadmap/01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)  
 **Concurrency:** [docs/architecture/08-concurrency-and-locking.md](../architecture/08-concurrency-and-locking.md)  
 **Efficiency:** [docs/architecture/10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md)  
 **ADR-004:** [docs/decisions/adr-004-api-service-nuget-concurrency.md](../decisions/adr-004-api-service-nuget-concurrency.md)  
 **ADR-007:** [docs/decisions/adr-007-sharding-parameters.md](../decisions/adr-007-sharding-parameters.md)  
 **ADR-008:** [docs/decisions/adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature | SQL:2023 Basis | Status |
+|---------|----------------|--------|
+| PRIMARY KEY | Core (Unique constraint) | Done |
+| FOREIGN KEY | Core (Referential integrity) | Done |
+| UNIQUE | Core (Unique constraint) | Done |
+| CREATE INDEX | Implementation-defined | Done |
+| F292 | UNIQUE null treatment (NULLS DISTINCT/NOT DISTINCT) | Enhancement |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## Compliance Checklist
+
+- [x] PRIMARY KEY (column or table level)
+- [x] FOREIGN KEY ... REFERENCES
+- [x] UNIQUE (column or table level)
+- [x] CREATE INDEX
+- [x] Index format: Value|ShardId|_RowId; sorted per adr-008
+- [ ] **Index lookup O(log n):** Must use binary search; sequential scan is non-compliant (see adr-008 Implementation Status)
+- [ ] **SELECT with index:** When index exists for WHERE, fetch only matching rows; avoid full table scan
+- [ ] F292 UNIQUE null treatment (enhancement)
 
 ---
 

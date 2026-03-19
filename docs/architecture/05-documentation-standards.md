@@ -55,10 +55,11 @@ Documentation must be organized by implemented features:
 These rules apply to **every** sub-plan execution:
 
 1. **On plan completion:** Update [README.md](../../README.md) Roadmap table (phase status, scope changes)
-2. **On feature addition:** Update [11-sql2023-mapping.md](11-sql2023-mapping.md) with implemented feature IDs
+2. **On feature addition:** Update [11-sql2023-mapping.md](11-sql2023-mapping.md) and [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md) with implemented feature IDs
 3. **On API/CLI change:** Update [docs/cli-reference.md](../cli-reference.md), Getting Started docs, and XML comments
 4. **On storage change:** Update [02-storage-format.md](02-storage-format.md)
 5. **Examples:** Provide examples for CLI (filesystem), CLI (WASM), and Embedding per this document
+6. **Phase documents:** Each phase plan must include SQL:2023 Compliance section, feature IDs from [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md), spec reference (ISO/IEC 9075-2:2023), and Compliance Checklist
 
 ## Implementation Types
 

@@ -1,15 +1,44 @@
-# SQLTxt Phase 1 — Implementation Plan
+# SQLTxt Phase 1 — Core DML/DDL
 
 This plan implements the **Phase 1** minimal readable database engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE with fixed-width types (CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL).
+
+**Status:** Done  
+**Prerequisites:** Stage 0 complete  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation — Clause 4 (Schema definition), 14 (Data manipulation)
 
 **Reference:** [docs/specifications/01_Initial_Creation.md](../specifications/01_Initial_Creation.md) (Phase 1 section)  
 **Cursor prompts:** [docs/prompts/phase-1-cursor-prompts.md](../prompts/phase-1-cursor-prompts.md)  
 **Storage format:** [docs/architecture/02-storage-format.md](../architecture/02-storage-format.md)  
 **SQL:2023 mapping:** [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)  
+**Feature registry:** [docs/roadmap/01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)  
 **Design decisions:** [docs/decisions/adr-003-phase1-design-decisions.md](../decisions/adr-003-phase1-design-decisions.md)  
 **Durability/sharding:** [docs/architecture/06-durability-and-sharding.md](../architecture/06-durability-and-sharding.md)  
 **API/deployment:** [docs/architecture/07-api-and-deployment.md](../architecture/07-api-and-deployment.md)  
 **Concurrency:** [docs/architecture/08-concurrency-and-locking.md](../architecture/08-concurrency-and-locking.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature | SQL:2023 Basis | Status |
+|---------|----------------|--------|
+| CREATE TABLE | Core schema definition | Done |
+| INSERT | Insert statement | Done |
+| SELECT | Query specification | Done |
+| UPDATE | Update statement | Done |
+| DELETE | Delete statement | Done |
+| Data types | CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL | Done |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## CREATE TABLE Compliance Checklist
+
+- [x] CREATE TABLE name (column_def, ...)
+- [x] Column types: CHAR(n), INT, TINYINT, BIGINT, BIT, DECIMAL(p,s)
+- [x] Column order preserved
+- [x] Table names unique; column names unique
+- [ ] NOT NULL (Phase 1+ enhancement)
+- [ ] DEFAULT expression (Phase 5 with ALTER)
 
 ---
 
@@ -29,7 +58,7 @@ This plan implements the **Phase 1** minimal readable database engine: CREATE DA
 - Sample Wiki: run create-wiki.sql and seed-wiki.sql as Phase 1 verification
 - Data types: CHAR, INT, TINYINT, BIGINT, BIT, DECIMAL
 - NumberFormat and TextEncoding parameters at CREATE DATABASE
-- Fixed-width encodings only
+- TextEncoding: UTF-8 supported; fixed-width optional (adr-003)
 - Sharding: per-table MaxShardSize; database default defaultMaxShardSize (20 MB) per [adr-007](../decisions/adr-007-sharding-parameters.md); shard data files when too large
 - Efficiency: Knuth-style — design for speed and efficiency; avoid straightforward-but-slow approaches
 - SQL:2023: Phase 1 implements applicable subset per [11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)

@@ -52,9 +52,10 @@ try
             collected.Add(await RunVarcharShardingAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
         }
         results = collected;
-        logger.LogComparisonTable(collected);
-        foreach (var r in collected)
-            logger.LogResult(r);
+        if (verbose)
+            foreach (var r in collected)
+                logger.LogResult(r);
+        logger.LogSummaryTable(collected);
     }
     else
     {
@@ -67,7 +68,9 @@ try
             _ => UnknownTest(testName)
         };
         results.Add(result);
-        logger.LogResult(result);
+        if (verbose)
+            logger.LogResult(result);
+        logger.LogSummaryTable(results);
     }
 }
 catch (Exception ex)

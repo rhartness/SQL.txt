@@ -62,6 +62,18 @@ public interface IFileSystemAccessor
     IAsyncEnumerable<string> ReadLinesAsync(string path, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Opens a stream for reading. Caller must dispose the stream.
+    /// Enables chunked/streaming reads for large files.
+    /// </summary>
+    Task<Stream> OpenReadStreamAsync(string path, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens a stream for writing (creates or overwrites). Caller must dispose before MoveFile.
+    /// Enables streaming writes without full-file materialization.
+    /// </summary>
+    Task<Stream> OpenWriteStreamAsync(string path, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Moves a file from source to destination, overwriting if destination exists (atomic replace).
     /// </summary>
     void MoveFile(string sourcePath, string destinationPath);

@@ -31,6 +31,7 @@ public static class VarcharShardingTest
             if (Directory.Exists(dbFolder))
                 Directory.Delete(dbFolder, recursive: true);
 
+            var setupSw = Stopwatch.StartNew();
             logger?.Log($"Creating database with Notes table (VARCHAR, maxShardSize={DefaultMaxShardSizeBytes} bytes, storage: {storageBackend ?? "text"})...");
 
             var createDbSql = storageBackend is "binary"
@@ -41,6 +42,8 @@ public static class VarcharShardingTest
             await engine.ExecuteAsync(
                 $"CREATE TABLE Notes (Id CHAR(10) PRIMARY KEY, Content VARCHAR(5000)) WITH (maxShardSize={DefaultMaxShardSizeBytes})",
                 dbFolder, cancellationToken).ConfigureAwait(false);
+            setupSw.Stop();
+            details["Step_Setup_Ms"] = setupSw.Elapsed.TotalMilliseconds;
 
             logger?.Log($"Inserting {rowCount} Notes rows with variable Content lengths (100-2000 chars)...");
             var insertSw = Stopwatch.StartNew();
@@ -58,7 +61,10 @@ public static class VarcharShardingTest
                 "INSERT INTO Notes (Id, Content) VALUES " + valuesStr,
                 dbFolder, cancellationToken).ConfigureAwait(false);
             insertSw.Stop();
-            details["InsertDurationMs"] = insertSw.ElapsedMilliseconds;
+            var insertMs = insertSw.Elapsed.TotalMilliseconds;
+            details["Step_Insert_Ms"] = insertMs;
+            details["Step_Insert_Count"] = rowCount;
+            details["Avg_Insert_Ms"] = rowCount > 0 ? insertMs / rowCount : 0;
 
             var tablesPath = Path.Combine(dbFolder, "Tables", "Notes");
             var shardCount = 0;
@@ -77,19 +83,31 @@ public static class VarcharShardingTest
 
             logger?.Log($"Shard files: {shardCount}");
 
+            var fullScanSw = Stopwatch.StartNew();
             var fullScan = await engine.ExecuteQueryAsync("SELECT * FROM Notes", dbFolder, cancellationToken).ConfigureAwait(false);
+            fullScanSw.Stop();
+            details["Step_Query_FullScan_Ms"] = fullScanSw.Elapsed.TotalMilliseconds;
             if (fullScan.QueryResult == null || fullScan.QueryResult.Rows.Count != rowCount)
                 exceptions.Add($"Full scan expected {rowCount} rows, got {fullScan.QueryResult?.Rows.Count ?? 0}");
 
             var midId = rowCount / 2;
+            var pkLookupSw = Stopwatch.StartNew();
             var pkLookup = await engine.ExecuteQueryAsync($"SELECT * FROM Notes WHERE Id = '{midId}'", dbFolder, cancellationToken).ConfigureAwait(false);
+            pkLookupSw.Stop();
+            details["Step_Query_PkLookup_Ms"] = pkLookupSw.Elapsed.TotalMilliseconds;
             if (pkLookup.QueryResult == null || pkLookup.QueryResult.Rows.Count != 1)
                 exceptions.Add($"PK lookup Id={midId} expected 1 row, got {pkLookup.QueryResult?.Rows.Count ?? 0}");
 
             logger?.Log("Running RebalanceTableAsync...");
+            var rebalanceSw = Stopwatch.StartNew();
             await engine.RebalanceTableAsync(dbFolder, "Notes", cancellationToken).ConfigureAwait(false);
+            rebalanceSw.Stop();
+            details["Step_Rebalance_Ms"] = rebalanceSw.Elapsed.TotalMilliseconds;
 
+            var afterRebalanceSw = Stopwatch.StartNew();
             var afterRebalance = await engine.ExecuteQueryAsync("SELECT * FROM Notes", dbFolder, cancellationToken).ConfigureAwait(false);
+            afterRebalanceSw.Stop();
+            details["Step_Query_AfterRebalance_Ms"] = afterRebalanceSw.Elapsed.TotalMilliseconds;
             if (afterRebalance.QueryResult == null || afterRebalance.QueryResult.Rows.Count != rowCount)
                 exceptions.Add($"After rebalance: expected {rowCount} rows, got {afterRebalance.QueryResult?.Rows.Count ?? 0}");
         }

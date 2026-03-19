@@ -520,22 +520,22 @@ public sealed class DatabaseEngine : IDatabaseEngine
             }
         }
 
-        await foreach (var row in _tableDataStore.ReadRowsAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false))
+        if (indexRowIds != null && indexRowIds.Count == 0)
         {
-            if (cmd.WhereColumn != null && cmd.WhereValue != null)
+            return new EngineResult(0, new QueryResult(columnNames, rows));
+        }
+
+        var rowSource = indexRowIds != null && indexRowIds.Count > 0
+            ? _tableDataStore.ReadRowsByRowIdsAsync(databasePath, cmd.TableName, indexRowIds, cancellationToken)
+            : _tableDataStore.ReadRowsAsync(databasePath, cmd.TableName, cancellationToken);
+
+        await foreach (var row in rowSource.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            if (cmd.WhereColumn != null && cmd.WhereValue != null && indexRowIds == null)
             {
-                if (indexRowIds != null)
-                {
-                    var rowIdStr = row.GetValue(TableDefinition.RowIdColumnName);
-                    if (string.IsNullOrEmpty(rowIdStr) || !long.TryParse(rowIdStr, out var rid) || !indexRowIds.Contains(rid))
-                        continue;
-                }
-                else
-                {
-                    var rowVal = row.GetValue(cmd.WhereColumn);
-                    if (rowVal == null || !rowVal.Equals(cmd.WhereValue, StringComparison.OrdinalIgnoreCase))
-                        continue;
-                }
+                var rowVal = row.GetValue(cmd.WhereColumn);
+                if (rowVal == null || !rowVal.Equals(cmd.WhereValue, StringComparison.OrdinalIgnoreCase))
+                    continue;
             }
 
             var projected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

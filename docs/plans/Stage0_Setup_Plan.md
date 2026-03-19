@@ -1,8 +1,32 @@
-# SQLTxt Stage 0 — Project Setup Plan
+# SQLTxt Stage 0 / Phase 0 — Foundation Plan
 
 This plan establishes the full project foundation for **SQL.txt**, a lightweight, embeddable .NET database engine that persists data in human-readable text files. No functional code is created; only scaffolding, guidance, and documentation.
 
+**Status:** Done  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation
+
 **Reference:** [docs/specifications/01_Initial_Creation.md](../specifications/01_Initial_Creation.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature | SQL:2023 Basis | Status |
+|---------|----------------|--------|
+| CREATE DATABASE | Implementation-defined (not in standard) | Done |
+| Directory layout, manifest, ~System | Implementation-defined | Done |
+| Storage backend (text \| binary) | Implementation-defined | Done |
+| Sharding, STOC, durability | Implementation-defined | Done |
+| ID106, IA201 | Implementation-defined null semantics | Documented |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## Compliance Checklist
+
+- [x] CREATE DATABASE with optional WITH (defaultMaxShardSize, storageBackend, numberFormat, textEncoding)
+- [x] Directory structure: db/, Tables/, ~System/, Views/, Procedures/, Functions/
+- [x] manifest.json with engineVersion, storageFormatVersion, storageBackend
+- [x] Sharding and STOC design per adr-008
 
 ---
 

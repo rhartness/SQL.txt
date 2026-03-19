@@ -22,6 +22,12 @@ public interface ITableDataStore
     IAsyncEnumerable<RowData> ReadRowsAsync(string databasePath, string tableName, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Reads only active rows whose _RowId is in the given set. Uses STOC to limit shards when possible.
+    /// Short-circuits when all requested rows are found.
+    /// </summary>
+    IAsyncEnumerable<RowData> ReadRowsByRowIdsAsync(string databasePath, string tableName, IReadOnlySet<long> rowIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Reads all rows (including deleted) for update/delete operations.
     /// </summary>
     Task<IReadOnlyList<(bool IsActive, RowData Row)>> ReadAllRowsWithStatusAsync(string databasePath, string tableName, CancellationToken cancellationToken = default);

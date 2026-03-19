@@ -90,6 +90,19 @@ public sealed class PersistedMemoryFileSystemAccessor : IFileSystemAccessor
         return _inner.ReadLinesAsync(path, cancellationToken);
     }
 
+    public async Task<Stream> OpenReadStreamAsync(string path, CancellationToken cancellationToken = default)
+    {
+        EnsureLoaded();
+        return await _inner.OpenReadStreamAsync(path, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Stream> OpenWriteStreamAsync(string path, CancellationToken cancellationToken = default)
+    {
+        EnsureLoaded();
+        var innerStream = await _inner.OpenWriteStreamAsync(path, cancellationToken).ConfigureAwait(false);
+        return new SaveOnDisposeStream(innerStream, Save);
+    }
+
     public void MoveFile(string sourcePath, string destinationPath)
     {
         EnsureLoaded();
@@ -160,6 +173,48 @@ public sealed class PersistedMemoryFileSystemAccessor : IFileSystemAccessor
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
         File.WriteAllText(_persistencePath, json);
+    }
+
+    private sealed class SaveOnDisposeStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly Action _onDispose;
+        private bool _disposed;
+
+        public SaveOnDisposeStream(Stream inner, Action onDispose)
+        {
+            _inner = inner;
+            _onDispose = onDispose;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+            if (disposing)
+            {
+                _inner.Dispose();
+                _onDispose();
+            }
+            _disposed = true;
+            base.Dispose(disposing);
+        }
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => _inner.Position = value; }
+        public override void Flush() => _inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+        public override void SetLength(long value) => _inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => _inner.WriteAsync(buffer, cancellationToken);
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.WriteAsync(buffer, offset, count, cancellationToken);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.ReadAsync(buffer, offset, count, cancellationToken);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => _inner.ReadAsync(buffer, cancellationToken);
+        public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
     }
 
     /// <summary>

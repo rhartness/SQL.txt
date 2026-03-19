@@ -8,6 +8,29 @@ This document references ISO/IEC 9075:2023 (SQL:2023) and maps all SQL:2023 feat
 
 ---
 
+## SQL:2023 Feature Registry
+
+The comprehensive list of all SQL:2023 features with phase assignments and spec references is in [01-sql2023-feature-registry.md](01-sql2023-feature-registry.md). Individual phase documents reference this registry for full spec/language compliance.
+
+---
+
+## Execution Order
+
+Phases execute in this order:
+
+1. **Phase 0** — Foundation (CREATE DATABASE, storage, sharding)
+2. **Phase 1** — Core DML/DDL (CREATE TABLE, INSERT, SELECT, UPDATE, DELETE)
+3. **Phase 2** — Integrity and Indexes (PK, FK, UNIQUE, CREATE INDEX)
+4. **Phase 3** — VARCHAR and String Types
+
+5. **Phase 4** — Query Enrichment (JOINs, aggregates, ORDER BY, GROUP BY, subqueries)
+6. **CTE Phase** — Common Table Expressions (WITH, WITH RECURSIVE)
+7. **Phase 5** — Schema Evolution and Transactions (ALTER TABLE, BEGIN/COMMIT/ROLLBACK)
+8. **Phase 6** — Programmability (Views, Procedures, Functions)
+9. **Phase 7** — Statistics (CREATE STATISTICS)
+
+---
+
 ## Phased Feature Mapping (In Scope)
 
 | Phase | SQL:2023 Features | Status |
@@ -20,6 +43,37 @@ This document references ISO/IEC 9075:2023 (SQL:2023) and maps all SQL:2023 feat
 | Phase 5 | F387 (ALTER COLUMN), F388 (ADD/DROP CONSTRAINT, RENAME); F112–F114 (isolation levels) | Planned |
 | Phase 6 | CREATE VIEW; CREATE PROCEDURE; CREATE FUNCTION | Planned |
 | Phase 7 | CREATE STATISTICS (implementation-defined) | Planned |
+
+---
+
+## CREATE DATABASE / CREATE TABLE Completeness
+
+### CREATE DATABASE (Implementation-Defined)
+
+- [x] `CREATE DATABASE name`
+- [x] `WITH (defaultMaxShardSize=...)`
+- [x] `WITH (storageBackend=text|binary)`
+- [x] `WITH (numberFormat=...)`
+- [x] `WITH (textEncoding=...)`
+
+### CREATE TABLE (SQL:2023 Core Subset)
+
+- [x] `CREATE TABLE name (column_def, ...)`
+- [x] Column types: CHAR(n), VARCHAR(n), INT, TINYINT, BIGINT, BIT, DECIMAL(p,s)
+- [x] PRIMARY KEY (column or table level)
+- [x] FOREIGN KEY ... REFERENCES
+- [x] UNIQUE (column or table level)
+- [ ] DEFAULT expression (Phase 5 with ALTER)
+- [ ] NOT NULL (Phase 1+ enhancement)
+- [ ] CHECK constraint (future)
+- [ ] CREATE TABLE ... AS SELECT (future)
+- [ ] CREATE TABLE ... LIKE (future)
+
+---
+
+## Deferred / Future Phases
+
+JSON, Arrays, BLOB/CLOB, Triggers, Property Graph Queries, and other deferred features are documented in [01-sql2023-feature-registry.md](01-sql2023-feature-registry.md).
 
 ---
 
@@ -107,5 +161,6 @@ Both backends support the same SQL:2023 feature set. See [docs/architecture/02-s
 
 ## References
 
+- [01-sql2023-feature-registry.md](01-sql2023-feature-registry.md) — Full SQL:2023 feature list with phase assignments
 - [11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md) — Per-phase mapping
 - [adr-005-sql2023-alignment.md](../decisions/adr-005-sql2023-alignment.md) — Alignment decision

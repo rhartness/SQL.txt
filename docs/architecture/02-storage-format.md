@@ -63,10 +63,11 @@ Contains all properties specific to the database itself. It describes the databa
 
 When `storageBackend=binary`, table data files use extension `.bin` and a fixed-length record format:
 
+- **Streaming:** Binary reads use `OpenReadStreamAsync` with chunked `ReadAsync` (64 KB buffer, ArrayPool); writes use `OpenWriteStreamAsync` for streaming without full-file materialization.
 - **Record layout:** 1 byte flag (0=active, 1=deleted) + 8 bytes RowId (little-endian) + fixed-width column values per schema
 - **Column bytes:** CHAR(n)=n, VARCHAR(n)=n, INT=4, TINYINT=1, BIGINT=8, BIT=1, DECIMAL=8
 - **numberFormat** — Optional; default `"standard"` (decimal `.`). Override for locale-specific numeric formatting.
-- **textEncoding** — Optional; only fixed-width encodings (each character = fixed bytes). No UTF-8. Default: ASCII or platform fixed-width.
+- **textEncoding** — Optional; UTF-8 supported for text backend. Fixed-width encodings (ASCII, Latin-1, UTF-16, UTF-32) also supported. Default: UTF-8 or platform default. UTF-8 is variable-length; line-delimited format still enables line-by-line streaming. See [06-durability-and-sharding.md](06-durability-and-sharding.md).
 - **defaultMaxShardSize** — Optional; default 20 MB (20,971,520 bytes). Database-level default for table shard size. Overridable per table via `CREATE TABLE ... WITH (maxShardSize=...)`. See [06-durability-and-sharding.md](06-durability-and-sharding.md).
 
 ### Schema Location
@@ -141,7 +142,7 @@ Database-level **defaultMaxShardSize** (20 MB default) in manifest; per-table ov
 
 - `FORMAT_VERSION` in schema enables future format evolution
 - `storageFormatVersion` in manifest for cross-database compatibility
-- Phase 1: fixed-width only; Phase 3: per-table format versions for VARCHAR
+- Phase 1: fixed-width only; Phase 3+: variable-width (length-prefixed) is primary for tables with VARCHAR; fixed-width remains for legacy compatibility
 
 ## File Naming
 

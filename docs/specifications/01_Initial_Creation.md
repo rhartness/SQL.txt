@@ -29,7 +29,7 @@ The project has two goals:
 * Implemented in phases with strict scope boundaries
 * Query optimization sophistication (Baked in, but scale up capability with phases)
 * **Shardable files** — With each phase, use absolute best practices for breaking up parts that might grow very large. Table data, metadata, indexes, multi-width field files must be shardable. Database default `defaultMaxShardSize` (20 MB); per-table `MaxShardSize` override. Rebalance API for shard redistribution.
-* **SQL:2023 alignment** — Each phase implements the applicable subset of ISO/IEC 9075-2:2023. See `docs/architecture/11-sql2023-mapping.md`.
+* **SQL:2023 alignment** — Each phase implements the applicable subset of ISO/IEC 9075-2:2023. See `docs/architecture/11-sql2023-mapping.md` and `docs/roadmap/01-sql2023-feature-registry.md`.
 * **Knuth-style efficiency** — Never implement the most straightforward approach for data-focused tasks; design for speed and efficiency.
 * **Statistics-ready design** — Phase 7 will add CREATE STATISTICS, histograms; metadata slots reserved in ~System for future implementation.
 
@@ -49,9 +49,9 @@ The project has two goals:
 The project will be built in **stages**:
 
 * **Stage 0:** Solution scaffolding, architecture, specifications, Cursor-ready prompts, test foundation
-* **Phase 1:** Core engine with schema creation, metadata storage, simple parser, single-table CRUD, fixed-width fields; async API; NuGet packaging; basic locking; SQL:2023 subset
+* **Phase 1:** Core engine with schema creation, metadata storage, simple parser, single-table CRUD, fixed-width fields (Phase 1 simplification; variable-width is primary for Phase 3+); async API; NuGet packaging; basic locking; SQL:2023 subset
 * **Phase 2:** Indexes, PK/FK, constraints, relational metadata; STOC; configurable sharding (20MB default); full lock manager; WITH (NOLOCK); installable Service
-* **Phase 3:** Variable-width fields (`VARCHAR`), storage evolution, extended parsing and validation
+* **Phase 3:** Variable-width fields (`VARCHAR`), storage evolution (variable-width is primary; fixed-width remains for legacy), extended parsing and validation
 * **Phase 4:** JOINs, aggregates, ORDER BY, GROUP BY, subqueries
 * **CTE Phase:** Common Table Expressions (WITH clause); non-recursive and recursive
 * **Phase 5:** ALTER TABLE, transactions
@@ -435,9 +435,13 @@ CREATE TABLE Users (
 
 * table names are unique within a database
 * column names are unique within a table
-* only fixed-width types in Phase 1
+* only fixed-width types in Phase 1 (simplification; variable-width primary in Phase 3+)
 * widths required and validated
 * column order preserved exactly as defined
+
+### CREATE TABLE SQL:2023 Compliance
+
+SQL.txt aligns with ISO/IEC 9075-2:2023 Core schema definition. Supported: column definitions with types (CHAR, VARCHAR, INT, TINYINT, BIGINT, BIT, DECIMAL), PRIMARY KEY, FOREIGN KEY, UNIQUE. See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md) for full feature mapping.
 
 ---
 
@@ -570,7 +574,7 @@ For fixed-width storage, numeric types use default widths (or explicit width if 
 ### CREATE DATABASE Parameters
 
 * **NumberFormat** (optional) — Default: standard (English) format with decimal `.`. Allow override for other numeric string formats when writing values (e.g., locale-specific decimal separator).
-* **TextEncoding** (optional) — Only **fixed-width** encodings. Each character = fixed number of bytes. No UTF-8 or other variable-length encodings. Default: ASCII or platform default fixed-width.
+* **TextEncoding** (optional) — UTF-8 supported. Fixed-width encodings (ASCII, Latin-1, UTF-16, UTF-32) also supported. Default: UTF-8 or platform default. See adr-003.
 
 ### Sharding
 

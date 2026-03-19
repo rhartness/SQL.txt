@@ -75,7 +75,7 @@ See [docs/architecture/05-documentation-standards.md](docs/architecture/05-docum
 These rules apply to **every** sub-plan execution:
 
 1. **On plan completion:** Update [README.md](README.md) Roadmap table (phase status, scope changes)
-2. **On feature addition:** Update [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md) with implemented feature IDs
+2. **On feature addition:** Update [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md) and [docs/roadmap/01-sql2023-feature-registry.md](docs/roadmap/01-sql2023-feature-registry.md) with implemented feature IDs
 3. **On API/CLI change:** Update [docs/cli-reference.md](docs/cli-reference.md), Getting Started docs, and XML comments
 4. **On storage change:** Update [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md)
 5. **On storage/format change:** Run manual tests (`sharding`, `sharding-varchar`, `concurrency`) and extend them if the change affects row format, sharding, or locking
@@ -89,6 +89,7 @@ These rules apply to **every** sub-plan execution:
 - **Architecture:** [docs/architecture/](docs/architecture/)
 - **Storage format:** [docs/architecture/02-storage-format.md](docs/architecture/02-storage-format.md) — db/, Tables/, ~System/, sharding, STOC
 - **SQL:2023 mapping:** [docs/architecture/11-sql2023-mapping.md](docs/architecture/11-sql2023-mapping.md)
+- **SQL:2023 feature registry:** [docs/roadmap/01-sql2023-feature-registry.md](docs/roadmap/01-sql2023-feature-registry.md) — Full feature list with phase assignments
 - **Statistics design:** [docs/decisions/adr-006-statistics-design.md](docs/decisions/adr-006-statistics-design.md)
 - **Durability/sharding:** [docs/architecture/06-durability-and-sharding.md](docs/architecture/06-durability-and-sharding.md)
 - **API/deployment:** [docs/architecture/07-api-and-deployment.md](docs/architecture/07-api-and-deployment.md) — CLI, Service, NuGet

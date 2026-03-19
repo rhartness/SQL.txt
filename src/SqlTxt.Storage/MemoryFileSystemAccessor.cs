@@ -138,6 +138,29 @@ public sealed class MemoryFileSystemAccessor : Contracts.IFileSystemAccessor
         }
     }
 
+    public Task<Stream> OpenReadStreamAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var norm = Normalize(path);
+        if (_binaryFiles.TryGetValue(norm, out var bytes))
+            return Task.FromResult<Stream>(new MemoryStream(bytes, writable: false));
+        if (_files.TryGetValue(norm, out var content))
+            return Task.FromResult<Stream>(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content), writable: false));
+        throw new FileNotFoundException("File not found", path);
+    }
+
+    public Task<Stream> OpenWriteStreamAsync(string path, CancellationToken cancellationToken = default)
+    {
+        var norm = Normalize(path);
+        EnsureParentDirectories(norm);
+        var inner = new MemoryStream();
+        var capture = new WriteCaptureStream(inner, norm, (n, data) =>
+        {
+            _binaryFiles[n] = data;
+            _files.Remove(n);
+        });
+        return Task.FromResult<Stream>(capture);
+    }
+
     public void MoveFile(string sourcePath, string destinationPath)
     {
         var srcNorm = Normalize(sourcePath);
@@ -252,6 +275,52 @@ public sealed class MemoryFileSystemAccessor : Contracts.IFileSystemAccessor
         var idx = path.LastIndexOf('/');
         if (idx > 0)
             CreateDirectory(path[..idx]);
+    }
+
+    private sealed class WriteCaptureStream : Stream
+    {
+        private readonly MemoryStream _inner;
+        private readonly string _norm;
+        private readonly Action<string, byte[]> _onDispose;
+        private bool _disposed;
+
+        public WriteCaptureStream(MemoryStream inner, string norm, Action<string, byte[]> onDispose)
+        {
+            _inner = inner;
+            _norm = norm;
+            _onDispose = onDispose;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+            if (disposing)
+            {
+                _inner.Position = 0;
+                var data = _inner.ToArray();
+                _onDispose(_norm, data);
+                _inner.Dispose();
+            }
+            _disposed = true;
+            base.Dispose(disposing);
+        }
+
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => _inner.CanSeek;
+        public override bool CanWrite => _inner.CanWrite;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => _inner.Position = value; }
+        public override void Flush() => _inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => _inner.Read(buffer, offset, count);
+        public override long Seek(long offset, SeekOrigin origin) => _inner.Seek(offset, origin);
+        public override void SetLength(long value) => _inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => _inner.Write(buffer, offset, count);
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => _inner.WriteAsync(buffer, cancellationToken);
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.WriteAsync(buffer, offset, count, cancellationToken);
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => _inner.ReadAsync(buffer, offset, count, cancellationToken);
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) => _inner.ReadAsync(buffer, cancellationToken);
+        public override Task FlushAsync(CancellationToken cancellationToken) => _inner.FlushAsync(cancellationToken);
     }
 
     /// <summary>

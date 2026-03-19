@@ -2,9 +2,31 @@
 
 **Status:** Pending  
 **Parent:** Enterprise SQL:2023 Meta-Plan  
-**Prerequisites:** Plan G complete
+**Prerequisites:** Plan G complete  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation — Clause 4 (Schema), 11 (Routines)
 
 **Reference:** [docs/specifications/02_Post_Phase3_Features.md](../specifications/02_Post_Phase3_Features.md), [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature ID | Name | Status |
+|------------|------|--------|
+| Core | CREATE VIEW | Planned |
+| Core | CREATE PROCEDURE | Planned |
+| Core | CREATE FUNCTION (scalar) | Planned |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## Compliance Checklist
+
+- [ ] CREATE VIEW name AS SELECT ...
+- [ ] DROP VIEW
+- [ ] CREATE PROCEDURE name AS ...
+- [ ] EXEC / CALL procedure
+- [ ] CREATE FUNCTION name RETURNS type AS ...
+- [ ] Scalar function invocation in expressions
 
 ---
 

@@ -2,9 +2,29 @@
 
 **Status:** Pending  
 **Parent:** Enterprise SQL:2023 Meta-Plan  
-**Prerequisites:** Plan E complete
+**Prerequisites:** Plan E complete  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation — Clause 7.16 (query expression)
 
 **Reference:** [docs/specifications/02_Post_Phase3_Features.md](../specifications/02_Post_Phase3_Features.md), [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature ID | Name | Status |
+|------------|------|--------|
+| — | WITH clause (non-recursive CTE) | Planned |
+| — | WITH RECURSIVE (recursive CTE) | Planned |
+| T133 | Enhanced cycle mark values | Enhancement |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## Compliance Checklist
+
+- [ ] WITH cte AS (SELECT ...) SELECT ...
+- [ ] WITH RECURSIVE cte AS (anchor UNION ALL recursive) SELECT ...
+- [ ] Multiple CTEs
+- [ ] T133 cycle detection (optional enhancement)
 
 ---
 

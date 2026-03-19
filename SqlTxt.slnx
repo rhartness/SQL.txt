@@ -1,14 +1,14 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/SqlTxt/SqlTxt.csproj" />
-    <Project Path="src/SqlTxt.Service/SqlTxt.Service.csproj" />
     <Project Path="src/SqlTxt.Cli/SqlTxt.Cli.csproj" />
     <Project Path="src/SqlTxt.Contracts/SqlTxt.Contracts.csproj" />
     <Project Path="src/SqlTxt.Core/SqlTxt.Core.csproj" />
     <Project Path="src/SqlTxt.Engine/SqlTxt.Engine.csproj" />
     <Project Path="src/SqlTxt.Parser/SqlTxt.Parser.csproj" />
     <Project Path="src/SqlTxt.SampleApp/SqlTxt.SampleApp.csproj" />
+    <Project Path="src/SqlTxt.Service/SqlTxt.Service.csproj" />
     <Project Path="src/SqlTxt.Storage/SqlTxt.Storage.csproj" />
+    <Project Path="src/SqlTxt/SqlTxt.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SqlTxt.Core.Tests/SqlTxt.Core.Tests.csproj" />
@@ -18,4 +18,5 @@
     <Project Path="tests/SqlTxt.Service.Tests/SqlTxt.Service.Tests.csproj" />
     <Project Path="tests/SqlTxt.Storage.Tests/SqlTxt.Storage.Tests.csproj" />
   </Folder>
+  <Project Path="src/SqlTxt.ManualTests/SqlTxt.ManualTests.csproj" />
 </Solution>

@@ -121,6 +121,67 @@ public class IntegrationTests
     }
 
     [Fact]
+    public async Task SelectWithIndex_DoesNotFullScan()
+    {
+        var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName}", tempDir);
+            var dbPath = dir;
+
+            await engine.ExecuteAsync("CREATE TABLE T (Id CHAR(5) PRIMARY KEY, Name CHAR(20))", dbPath);
+            for (var i = 1; i <= 25; i++)
+                await engine.ExecuteAsync($"INSERT INTO T (Id, Name) VALUES ('{i}', 'Row{i}')", dbPath);
+
+            var result = await engine.ExecuteQueryAsync("SELECT * FROM T WHERE Id = '15'", dbPath);
+            Assert.NotNull(result.QueryResult);
+            Assert.Single(result.QueryResult.Rows);
+            Assert.Equal("15", result.QueryResult.Rows[0].GetValue("Id"));
+            Assert.Equal("Row15", result.QueryResult.Rows[0].GetValue("Name"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task CreateDatabase_WithTextEncodingUtf8_Works()
+    {
+        var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName} WITH (textEncoding='utf-8')", tempDir);
+            var dbPath = dir;
+
+            var manifestPath = Path.Combine(dbPath, "db", "manifest.json");
+            Assert.True(File.Exists(manifestPath));
+            var json = await File.ReadAllTextAsync(manifestPath);
+            Assert.Contains("\"utf-8\"", json);
+
+            await engine.ExecuteAsync("CREATE TABLE U (Id CHAR(5), Name CHAR(20))", dbPath);
+            await engine.ExecuteAsync("INSERT INTO U (Id, Name) VALUES ('1', 'Test')", dbPath);
+            var result = await engine.ExecuteQueryAsync("SELECT * FROM U", dbPath);
+            Assert.NotNull(result.QueryResult);
+            Assert.Single(result.QueryResult.Rows);
+            Assert.Equal("1", result.QueryResult.Rows[0].GetValue("Id"));
+            Assert.Equal("Test", result.QueryResult.Rows[0].GetValue("Name"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Phase3_VarcharTable_FullCrud_Works()
     {
         var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];

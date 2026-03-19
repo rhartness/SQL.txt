@@ -53,3 +53,7 @@ On shard split:
 - Index store interface: `AddIndexEntryAsync(value, shardId, rowId)`; `LookupByValueAsync` returns `(ShardId, RowId)[]`
 - STOC must be created and maintained in Phase 2
 - Binary search requires sorted index files; append-and-sort or merge on compaction
+
+## Implementation Status
+
+**Index lookup must use O(log n) binary search.** The ADR specifies "Binary search on Value → get (ShardId, _RowId)" for index lookup. A sequential scan of the index file is **non-compliant** with this decision and with the efficiency requirements in [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md). Implementations must use binary search (e.g., via line-offset index, seekable stream, or MemoryMappedFile) to achieve O(log n) lookup. SELECT with index should avoid full table scan when index lookup returns RowIds; use `ReadRowsByRowIdsAsync` or equivalent to fetch only matching rows.

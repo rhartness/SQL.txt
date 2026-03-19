@@ -124,6 +124,48 @@ public sealed class FileSystemAccessor : Contracts.IFileSystemAccessor
         }
     }
 
+    public async Task<Stream> OpenReadStreamAsync(string path, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 65536, useAsync: true);
+                return await Task.FromResult<Stream>(stream).ConfigureAwait(false);
+            }
+            catch (IOException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+        }
+        throw new IOException($"Failed to open read stream after {MaxRetries} attempts: {path}");
+    }
+
+    public async Task<Stream> OpenWriteStreamAsync(string path, CancellationToken cancellationToken = default)
+    {
+        for (var attempt = 0; attempt < MaxRetries; attempt++)
+        {
+            try
+            {
+                var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 65536, useAsync: true);
+                return await Task.FromResult<Stream>(stream).ConfigureAwait(false);
+            }
+            catch (IOException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+            catch (UnauthorizedAccessException) when (attempt < MaxRetries - 1)
+            {
+                await Task.Delay(RetryDelaysMs[attempt], cancellationToken).ConfigureAwait(false);
+            }
+        }
+        throw new IOException($"Failed to open write stream after {MaxRetries} attempts: {path}");
+    }
+
     public void MoveFile(string sourcePath, string destinationPath)
     {
         for (var attempt = 0; attempt < MaxRetries; attempt++)

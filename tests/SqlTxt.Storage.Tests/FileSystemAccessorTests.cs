@@ -75,4 +75,56 @@ public class FileSystemAccessorTests
                 Directory.Delete(dir, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task OpenReadStreamAsync_ReturnsReadableStream()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "SqlTxtFs_" + Guid.NewGuid().ToString("N")[..8]);
+        var file = Path.Combine(dir, "read.bin");
+        try
+        {
+            Directory.CreateDirectory(dir);
+            await File.WriteAllBytesAsync(file, [1, 2, 3, 4, 5]);
+
+            var fs = new FileSystemAccessor();
+            var stream = await fs.OpenReadStreamAsync(file);
+            await using (stream)
+            {
+                var buf = new byte[5];
+                var n = await stream.ReadAsync(buf);
+                Assert.Equal(5, n);
+                Assert.Equal(new byte[] { 1, 2, 3, 4, 5 }, buf);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task OpenWriteStreamAsync_CreatesFile()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "SqlTxtFs_" + Guid.NewGuid().ToString("N")[..8]);
+        var file = Path.Combine(dir, "write.bin");
+        try
+        {
+            Directory.CreateDirectory(dir);
+
+            var fs = new FileSystemAccessor();
+            var stream = await fs.OpenWriteStreamAsync(file);
+            await using (stream)
+            {
+                await stream.WriteAsync(new byte[] { 10, 20, 30 });
+            }
+            var content = await File.ReadAllBytesAsync(file);
+            Assert.Equal(new byte[] { 10, 20, 30 }, content);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
 }

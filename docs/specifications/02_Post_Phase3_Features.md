@@ -4,6 +4,24 @@
 
 This document extends the SQL.txt roadmap beyond Phase 3 (VARCHAR, variable-width fields, storage evolution). The goal is to move SQL.txt toward a workable RDBMS for simple projects—learning, prototyping, and small applications—while preserving human-readable storage and incremental design.
 
+## SQL:2023 Compliance
+
+Each feature maps to SQL:2023 (ISO/IEC 9075-2:2023) feature IDs. See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md) for the full feature list and phase assignments.
+
+| Feature | SQL:2023 ID | Phase |
+|---------|-------------|-------|
+| JOINs | F401, F405, F406, F407 | 4 |
+| Aggregates | Core | 4 |
+| ORDER BY, GROUP BY, HAVING | Core | 4 |
+| Subqueries | Core | 4 |
+| ANY_VALUE | T626 | 4 |
+| ORDER BY in grouped table | F868 | 4 |
+| CTE | WITH, WITH RECURSIVE; T133 | CTE |
+| ALTER TABLE | F387, F388 | 5 |
+| Transactions | F112–F114 | 5 |
+| Views, Procedures, Functions | Core (Module) | 6 |
+| Statistics | Implementation-defined | 7 |
+
 ## Feature List
 
 | Feature | Phase | Description |

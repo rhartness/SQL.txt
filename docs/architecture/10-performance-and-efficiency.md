@@ -63,10 +63,10 @@ SQL.txt uses human-readable text files. These constraints inform efficient imple
 
 ## Interface Extensions
 
-Future interface changes to support efficiency:
+Implemented:
 
-- **IFileSystemAccessor**: Add `OpenReadStreamAsync`, `OpenWriteStreamAsync`, or `ReadLinesAsync` (streaming `IAsyncEnumerable<string>`) for large-file scenarios.
-- **ITableDataStore**: Ensure `ReadRowsAsync` uses true streaming internally (line-by-line); consider `StreamRowsAsync` if a different contract is needed.
+- **IFileSystemAccessor**: `OpenReadStreamAsync` and `OpenWriteStreamAsync` enable chunked/streaming reads and writes for large files. `ReadLinesAsync` provides streaming for text.
+- **Binary backend**: Uses `BinaryRecordStreamHelper` with ArrayPool buffers for O(record) memory during scans; shard split and transform use two-pass streaming.
 
 ## INSERT Efficiency
 
@@ -77,6 +77,8 @@ Future interface changes to support efficiency:
 
 ## Index and Statistics Design
 
+- **Index lookup:** Must use **O(log n) binary search** on sorted index files. Sequential scan is non-compliant. See [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md).
+- **SELECT with index:** When an index exists for the WHERE predicate, avoid full table scan. Use index lookup to get RowIds, then fetch only matching rows via `ReadRowsByRowIdsAsync` or equivalent. Do not stream all rows and filter in memory.
 - **Index STOC:** Shard Table of Contents enables O(affected rows) maintenance on shard split; avoid full index rebuild. See [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md).
 - **Statistics-ready:** Index format (sorted) and ~System metadata slots reserved for Phase 7 statistics. See [adr-006-statistics-design.md](../decisions/adr-006-statistics-design.md).
 

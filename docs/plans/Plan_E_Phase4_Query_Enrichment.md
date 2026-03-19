@@ -2,9 +2,44 @@
 
 **Status:** Pending  
 **Parent:** Enterprise SQL:2023 Meta-Plan  
-**Prerequisites:** Plan D complete
+**Prerequisites:** Plan D complete  
+**Spec Reference:** ISO/IEC 9075-2:2023 SQL/Foundation — Clause 7 (Query), 9 (Expressions)
 
 **Reference:** [docs/specifications/02_Post_Phase3_Features.md](../specifications/02_Post_Phase3_Features.md), [docs/architecture/11-sql2023-mapping.md](../architecture/11-sql2023-mapping.md)
+
+---
+
+## SQL:2023 Compliance
+
+| Feature ID | Name | Status |
+|------------|------|--------|
+| F401 | JOIN (INNER, LEFT OUTER) | Planned |
+| F405 | NATURAL JOIN | Planned |
+| F406 | FULL OUTER JOIN | Planned |
+| F407 | CROSS JOIN | Planned |
+| Core | Aggregates (COUNT, SUM, AVG, MIN, MAX) | Planned |
+| Core | ORDER BY, GROUP BY, HAVING | Planned |
+| Core | Subqueries (IN, EXISTS, scalar) | Planned |
+| T626 | ANY_VALUE | Planned |
+| F868 | ORDER BY in grouped table | Planned |
+| F303 | INTERSECT DISTINCT | Enhancement |
+| F305 | INTERSECT ALL | Enhancement |
+| T661 | Non-decimal integer literals | Parser |
+| T662 | Underscores in numeric literals | Parser |
+
+**Full feature list:** See [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md)
+
+## Compliance Checklist
+
+- [ ] F401 INNER JOIN, LEFT OUTER JOIN
+- [ ] F405 NATURAL JOIN
+- [ ] F406 FULL OUTER JOIN
+- [ ] F407 CROSS JOIN
+- [ ] Core aggregates, ORDER BY, GROUP BY, HAVING
+- [ ] Subqueries: IN, EXISTS, scalar
+- [ ] T626 ANY_VALUE
+- [ ] F868 ORDER BY in grouped table
+- [ ] F303, F305 INTERSECT (optional)
 
 ---
 
