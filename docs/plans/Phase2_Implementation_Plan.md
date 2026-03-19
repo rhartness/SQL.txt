@@ -37,8 +37,8 @@ This plan implements **Phase 2**: Indexes, PK/FK, constraints, relational metada
 - [x] UNIQUE (column or table level)
 - [x] CREATE INDEX
 - [x] Index format: Value|ShardId|_RowId; sorted per adr-008
-- [ ] **Index lookup O(log n):** Must use binary search; sequential scan is non-compliant (see adr-008 Implementation Status)
-- [ ] **SELECT with index:** When index exists for WHERE, fetch only matching rows; avoid full table scan
+- [x] **Index lookup O(log n):** Binary search on sorted index lines (`IndexStore` / `CachingIndexStore`); see [adr-008](../decisions/adr-008-index-shard-structure.md) Implementation Status
+- [x] **SELECT with index:** Equality `WHERE` on indexed column resolves row IDs then `ReadRowsByRowIdsAsync` (see `DatabaseEngine.ExecuteSelectAsync`)
 - [ ] F292 UNIQUE null treatment (enhancement)
 
 ---
@@ -444,4 +444,4 @@ flowchart TB
 - Index builds: use streaming scan; write index via StreamWriter or StringBuilder per [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md)
 - FK checks: index lookup is O(n) for one-entry-per-line; consider sort for binary search in future
 - Lock manager: avoid blocking; use async lock acquisition
-- INSERT and STOC: see [Efficiency_Improvements_Plan.md](Efficiency_Improvements_Plan.md) for STOC update frequency and batch RowId allocation
+- INSERT and STOC: see [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md) and [Phase3_5_Storage_Efficiency_Plan.md](Phase3_5_Storage_Efficiency_Plan.md) for STOC update frequency and batch RowId allocation

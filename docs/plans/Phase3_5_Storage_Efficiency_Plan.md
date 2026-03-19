@@ -7,7 +7,7 @@ Deliver **correct I/O semantics** (true append, no read–modify–write growth 
 ## References
 
 - [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md)
-- [Efficiency_Improvements_Plan.md](Efficiency_Improvements_Plan.md)
+- [Efficiency_Audit_Methodology.md](Efficiency_Audit_Methodology.md)
 - [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md)
 - [02-storage-format.md](../architecture/02-storage-format.md)
 
@@ -15,6 +15,28 @@ Deliver **correct I/O semantics** (true append, no read–modify–write growth 
 
 - **Logical** model: relational rows, keys, constraints (unchanged).
 - **Physical** layout: any structure that optimizes read/write/latency and I/O volume (sorted runs, in-memory trees, paged layouts), with **format versioning** and **text-backend inspectability** where required.
+
+## Pre-close: documentation, parity, and deferred items
+
+Complete these **before** treating Phase 3.5 as fully closed on the roadmap (implementation acceptance criteria below may already be met).
+
+**Documentation and doc parity**
+
+- [x] README roadmap row for Phase 3.5 matches shipped behavior
+- [x] [AGENTS.md](../../AGENTS.md) and [sql-txt-project-overview.mdc](../../.cursor/rules/sql-txt-project-overview.mdc) — Phase 3.5 / next-phase pointers current
+- [x] [00-sql2023-compliance-roadmap.md](../roadmap/00-sql2023-compliance-roadmap.md) — Phase 3.5 and ordering vs Phase 4
+- [x] [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md) — data-structure / INSERT path notes aligned with code
+- [x] [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md) — implementation status
+- [x] [02-storage-format.md](../architecture/02-storage-format.md), [05-documentation-standards.md](../architecture/05-documentation-standards.md), [Efficiency_Audit_Methodology.md](Efficiency_Audit_Methodology.md) — links and descriptions still accurate after plan cleanup
+- [x] [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md) — INSERT row notes Phase 3.5 batched path (see Core INSERT entry)
+
+**SQL:2023 optional enhancement (not required for Phase 3.5)**
+
+- **T054 — `GREATEST`, `LEAST`:** deferred optional scalar functions (formerly tracked on the archived Phase 3 VARCHAR meta-plan). Schedule with Phase 4+ scalar work if desired.
+
+**Retired meta-plans**
+
+- Completed or superseded docs under `docs/plans/` (`Plan_*`, `Stage0_*`, efficiency checklist duplicates) were removed. **Phase 4+** scope and ordering: [02_Post_Phase3_Features.md](../specifications/02_Post_Phase3_Features.md), [00-sql2023-compliance-roadmap.md](../roadmap/00-sql2023-compliance-roadmap.md), [01-sql2023-feature-registry.md](../roadmap/01-sql2023-feature-registry.md). Stubs: [Phase_CTE_Plan.md](Phase_CTE_Plan.md), [Phase7_Statistics_Plan.md](Phase7_Statistics_Plan.md).
 
 ## StreamTransform / rebalance (correctness)
 
@@ -59,17 +81,6 @@ dotnet run --project src/SqlTxt.ManualTests -- sharding
 dotnet run --project src/SqlTxt.ManualTests -- sharding-varchar
 dotnet run --project src/SqlTxt.ManualTests -- concurrency
 ```
-
-## Doc checklist (on completion)
-
-- [ ] README roadmap row Phase 3.5
-- [ ] AGENTS.md + `.cursor/rules/sql-txt-project-overview.mdc`
-- [ ] `docs/roadmap/00-sql2023-compliance-roadmap.md`
-- [ ] `docs/plans/Efficiency_Improvements_Plan.md` §4 active
-- [ ] `docs/architecture/10-performance-and-efficiency.md` data-structure section
-- [ ] `docs/decisions/adr-008-index-shard-structure.md` implementation status
-- [ ] `docs/architecture/02-storage-format.md`, `05-documentation-standards.md`, `Efficiency_Audit_Methodology.md`
-- [ ] Optional: `01-sql2023-feature-registry.md` footnote for multi-row batched path
 
 ## Out of scope
 

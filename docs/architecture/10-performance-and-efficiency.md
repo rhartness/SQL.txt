@@ -81,7 +81,7 @@ Implemented:
 - **STOC update:** Only on shard split and rebalance (per [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md)); not on every append to existing shards.
 - **Batch RowId allocation:** For multi-row INSERT, allocate RowIds in a single read/write cycle.
 - **Storage backend caching:** Cache resolved backend per database path; avoid repeated manifest reads.
-- See [Efficiency_Improvements_Plan.md](../plans/Efficiency_Improvements_Plan.md) for implementation details.
+- See [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md) for batched INSERT, append I/O, and sorted indexes.
 
 ## Index and Statistics Design
 
@@ -120,4 +120,4 @@ Three complementary layers reduce disk I/O:
 - [02-storage-format.md](02-storage-format.md) — On-disk layout, row format
 - [06-durability-and-sharding.md](06-durability-and-sharding.md) — Sharding, error handling
 - [Efficiency_Audit_Methodology.md](../plans/Efficiency_Audit_Methodology.md) — Audit process for existing code
-- [Efficiency_Improvements_Plan.md](../plans/Efficiency_Improvements_Plan.md) — INSERT and STOC efficiency fixes
+- [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md) — Phase 3.5 ingest and index efficiency
