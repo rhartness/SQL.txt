@@ -10,6 +10,7 @@ Run manual tests from the terminal with configurable parameters. Output goes to 
 
 - .NET 8 SDK
 - SQL.txt Engine (referenced as project reference)
+- For `--compare:localdb`: SQL Server LocalDB (default instance `(localdb)\MSSQLLocalDB`)
 
 ## How to Run
 
@@ -33,9 +34,12 @@ dotnet run --project src/SqlTxt.ManualTests -- <test> [options]
 | `--db <path>` | Database path | Current directory |
 | `--log <path>` | Log file path | `ManualTests_<timestamp>.log` in current directory |
 | `--storage <type>` | `text`, `binary`, or `all` | `text` |
+| `--compare:<db>` | Run same test against comparison DB for timing comparison | Off |
 | `--verbose` | Extra output | Off |
 
 Use `--storage all` to run each test for both text and binary backends and log a comparison table of timing results.
+
+Use `--compare:localdb` to also run the equivalent test against SQL Server LocalDB. Results appear in the same summary table (e.g., `Sharding [localdb]`). LocalDB uses the default instance; no connection config is required. Future comparison backends (e.g., SQL Server, PostgreSQL) will require connection config.
 
 ## Concurrency Options
 
@@ -60,9 +64,10 @@ Sharding tests include: full scan, lookup by Id (PK), lookup by Slug (indexed), 
 dotnet run --project src/SqlTxt.ManualTests -- concurrency --db ./TestDb
 dotnet run --project src/SqlTxt.ManualTests -- concurrency --db ./TestDb --threads 4 --ops 20
 dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --shards 5 --rows 500
+dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --compare:localdb
 dotnet run --project src/SqlTxt.ManualTests -- sharding-varchar --db ./TestDb --rows 200
 dotnet run --project src/SqlTxt.ManualTests -- sharding --db ./TestDb --storage all
-dotnet run --project src/SqlTxt.ManualTests -- all --db ./TestDb --storage all --log ./results.log
+dotnet run --project src/SqlTxt.ManualTests -- all --db ./TestDb --storage all --compare:localdb --log ./results.log
 ```
 
 ## Results Output

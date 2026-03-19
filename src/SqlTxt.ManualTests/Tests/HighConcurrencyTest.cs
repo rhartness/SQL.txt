@@ -11,6 +11,14 @@ namespace SqlTxt.ManualTests.Tests;
 /// </summary>
 public static class HighConcurrencyTest
 {
+    /// <param name="dbPath">Parent folder for sample Wiki database.</param>
+    /// <param name="threads">Concurrent writer threads for insert/update/delete phases.</param>
+    /// <param name="opsPerThread">Row operations per thread for each DML phase.</param>
+    /// <param name="readerThreads">Optional concurrent SELECT (NOLOCK) threads.</param>
+    /// <param name="storageBackend">Text or binary backend for new database.</param>
+    /// <param name="logger">Optional result logger.</param>
+    /// <param name="insertBatchSize">Rows per INSERT for User/Page/PageContent (1 = one row per statement; larger reduces round-trips).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public static async Task<TestResult> RunAsync(
         string dbPath,
         int threads = 8,
@@ -18,6 +26,7 @@ public static class HighConcurrencyTest
         int readerThreads = 0,
         string? storageBackend = null,
         ResultLogger? logger = null,
+        int insertBatchSize = 1,
         CancellationToken cancellationToken = default)
     {
         var engine = new DatabaseEngine();
@@ -33,10 +42,11 @@ public static class HighConcurrencyTest
         var selectTicks = new ConcurrentBag<long>();
         var setupMs = 0.0;
 
+        insertBatchSize = Math.Clamp(insertBatchSize, 1, 500);
         try
         {
             var setupSw = Stopwatch.StartNew();
-            logger?.Log($"Building WikiDb at {dbPath} (storage: {storageBackend ?? "text"})...");
+            logger?.Log($"Building WikiDb at {dbPath} (storage: {storageBackend ?? "text"}, insertBatchSize={insertBatchSize})...");
             await engine.BuildSampleWikiAsync(dbPath, new BuildSampleWikiOptions(Verbose: false, DeleteIfExists: true, StorageBackend: storageBackend), cancellationToken).ConfigureAwait(false);
             setupSw.Stop();
             setupMs = setupSw.Elapsed.TotalMilliseconds;
@@ -50,56 +60,69 @@ public static class HighConcurrencyTest
                 var threadId = t;
                 tasks.Add(Task.Run(async () =>
                 {
-                    for (var i = 0; i < opsPerThread; i++)
+                    for (var i = 0; i < opsPerThread;)
                     {
-                        var idBase = 10000 + (threadId * 1000) + i;
-                        try
+                        var batch = Math.Min(insertBatchSize, opsPerThread - i);
+                        var userValues = new List<string>(batch);
+                        var pageValues = new List<string>(batch);
+                        var pageContentValues = new List<string>(batch);
+                        for (var j = 0; j < batch; j++)
                         {
-                            var opSw = Stopwatch.StartNew();
-                            await engine.ExecuteAsync(
-                                "INSERT INTO User (Id, Username, Email, CreatedAt) VALUES ('" + idBase + "', 'user" + idBase + "', 'u" + idBase + "@test.local', '2026-03-17T12:00:00Z')",
-                                wikiDbPath, cancellationToken).ConfigureAwait(false);
-                            opSw.Stop();
-                            insertTicks.Add(opSw.ElapsedTicks);
-                            Interlocked.Increment(ref successCount);
-                        }
-                        catch (Exception ex)
-                        {
-                            Interlocked.Increment(ref failureCount);
-                            lock (lockObj) { exceptions.Add($"Insert User {idBase}: {ex.Message}"); }
+                            var idBase = 10000 + (threadId * 1000) + i + j;
+                            userValues.Add("('" + idBase + "', 'user" + idBase + "', 'u" + idBase + "@test.local', '2026-03-17T12:00:00Z')");
+                            pageValues.Add("('" + idBase + "', 'Page " + idBase + "', 'page-" + idBase + "', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')");
+                            pageContentValues.Add("('" + idBase + "', '" + idBase + "', 'Content " + idBase + "', 1, '1', '2026-03-17T12:00:00Z')");
                         }
 
                         try
                         {
                             var opSw = Stopwatch.StartNew();
                             await engine.ExecuteAsync(
-                                "INSERT INTO Page (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES ('" + idBase + "', 'Page " + idBase + "', 'page-" + idBase + "', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')",
+                                "INSERT INTO User (Id, Username, Email, CreatedAt) VALUES " + string.Join(", ", userValues),
                                 wikiDbPath, cancellationToken).ConfigureAwait(false);
                             opSw.Stop();
                             insertTicks.Add(opSw.ElapsedTicks);
-                            Interlocked.Increment(ref successCount);
+                            Interlocked.Add(ref successCount, batch);
                         }
                         catch (Exception ex)
                         {
-                            Interlocked.Increment(ref failureCount);
-                            lock (lockObj) { exceptions.Add($"Insert Page {idBase}: {ex.Message}"); }
+                            Interlocked.Add(ref failureCount, batch);
+                            lock (lockObj) { exceptions.Add($"Insert User batch @{10000 + threadId * 1000 + i}: {ex.Message}"); }
                         }
 
                         try
                         {
                             var opSw = Stopwatch.StartNew();
                             await engine.ExecuteAsync(
-                                "INSERT INTO PageContent (Id, PageId, Content, Version, CreatedById, CreatedAt) VALUES ('" + idBase + "', '" + idBase + "', 'Content " + idBase + "', 1, '1', '2026-03-17T12:00:00Z')",
+                                "INSERT INTO Page (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES " + string.Join(", ", pageValues),
                                 wikiDbPath, cancellationToken).ConfigureAwait(false);
                             opSw.Stop();
                             insertTicks.Add(opSw.ElapsedTicks);
-                            Interlocked.Increment(ref successCount);
+                            Interlocked.Add(ref successCount, batch);
                         }
                         catch (Exception ex)
                         {
-                            Interlocked.Increment(ref failureCount);
-                            lock (lockObj) { exceptions.Add($"Insert PageContent {idBase}: {ex.Message}"); }
+                            Interlocked.Add(ref failureCount, batch);
+                            lock (lockObj) { exceptions.Add($"Insert Page batch @{10000 + threadId * 1000 + i}: {ex.Message}"); }
                         }
+
+                        try
+                        {
+                            var opSw = Stopwatch.StartNew();
+                            await engine.ExecuteAsync(
+                                "INSERT INTO PageContent (Id, PageId, Content, Version, CreatedById, CreatedAt) VALUES " + string.Join(", ", pageContentValues),
+                                wikiDbPath, cancellationToken).ConfigureAwait(false);
+                            opSw.Stop();
+                            insertTicks.Add(opSw.ElapsedTicks);
+                            Interlocked.Add(ref successCount, batch);
+                        }
+                        catch (Exception ex)
+                        {
+                            Interlocked.Add(ref failureCount, batch);
+                            lock (lockObj) { exceptions.Add($"Insert PageContent batch @{10000 + threadId * 1000 + i}: {ex.Message}"); }
+                        }
+
+                        i += batch;
                     }
                 }, cancellationToken));
             }
@@ -210,6 +233,8 @@ public static class HighConcurrencyTest
 
         var details = new Dictionary<string, object>();
         details["Step_Setup_Ms"] = setupMs;
+        if (insertBatchSize > 1)
+            details["InsertBatchSize"] = insertBatchSize;
         if (insertTicks.Count > 0)
         {
             var avgInsertMs = insertTicks.Average() * 1000.0 / Stopwatch.Frequency;

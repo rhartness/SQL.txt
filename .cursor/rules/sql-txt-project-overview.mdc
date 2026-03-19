@@ -61,13 +61,14 @@ alwaysApply: true
 | Phase 1 | Done |
 | Phase 2 | Done |
 | Phase 3 | Done |
-| Phase 4 | Next |
+| Phase 3.5 | Next |
+| Phase 4 | After 3.5 |
 | CTE Phase | Planned |
 | Phase 5 | Planned |
 | Phase 6 | Planned |
 | Phase 7 | Planned (Statistics) |
 
-**Current focus:** Phase 4. See [docs/plans/](docs/plans/).
+**Current focus:** Phase 3.5 (storage & ingest efficiency). See [docs/plans/Phase3_5_Storage_Efficiency_Plan.md](../../docs/plans/Phase3_5_Storage_Efficiency_Plan.md) and [docs/plans/](docs/plans/).
 
 **Strategic:** SQL:2023 alignment per phase; dual storage backends (text | binary); configurable sharding (20MB default); rebalance API; Knuth-style efficiency; statistics-ready design.
 

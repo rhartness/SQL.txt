@@ -150,6 +150,41 @@ public class IntegrationTests
     }
 
     [Fact]
+    public async Task ConcurrentInsert_DifferentTables_BothSucceed()
+    {
+        var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName}", tempDir);
+            var dbPath = dir;
+
+            await engine.ExecuteAsync("CREATE TABLE ATable (Id CHAR(5) PRIMARY KEY)", dbPath);
+            await engine.ExecuteAsync("CREATE TABLE BTable (Id CHAR(5) PRIMARY KEY)", dbPath);
+
+            var t1 = engine.ExecuteAsync("INSERT INTO ATable (Id) VALUES ('1')", dbPath);
+            var t2 = engine.ExecuteAsync("INSERT INTO BTable (Id) VALUES ('1')", dbPath);
+            await Task.WhenAll(t1, t2);
+
+            var ra = await engine.ExecuteQueryAsync("SELECT Id FROM ATable", dbPath);
+            var rb = await engine.ExecuteQueryAsync("SELECT Id FROM BTable", dbPath);
+            Assert.NotNull(ra.QueryResult);
+            Assert.NotNull(rb.QueryResult);
+            Assert.Single(ra.QueryResult.Rows);
+            Assert.Single(rb.QueryResult.Rows);
+            Assert.Equal("1", ra.QueryResult.Rows[0].GetValue("Id"));
+            Assert.Equal("1", rb.QueryResult.Rows[0].GetValue("Id"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task CreateDatabase_WithTextEncodingUtf8_Works()
     {
         var dbName = "SqlTxtInt_" + Guid.NewGuid().ToString("N")[..8];

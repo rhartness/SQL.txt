@@ -6,7 +6,14 @@ SQL.txt prioritizes **speed**, **memory efficiency**, and **durability** alongsi
 
 ### Knuth-Style Principle
 
-Never implement the most straightforward approach for data-focused tasks. Think like a data or software scientist: structure all data management, building, linking, searching, and operations for maximum efficiency. Design for speed and efficiency from the start—choose algorithms and structures (e.g., binary search, incremental updates, STOC for indexes) that scale well.
+Never implement the most straightforward approach for data-focused tasks. Think like a data or software scientist: structure all data management, building, linking, searching, and operations for maximum efficiency. Design for speed and efficiency from the start—choose algorithms and structures (e.g., binary search, B-trees or other ordered structures, incremental updates, STOC for indexes) that scale well.
+
+### Data structure strategy (logical vs physical)
+
+- **Logical model** stays relational: rows, keys, and constraints as seen by SQL and applications.
+- **Physical representation** (in memory and on disk) should use whatever layout yields the fastest **reads and writes** and lowest I/O volume: sorted runs, trees, page-like segments, append-then-compact, hash tables with overflow—**not** necessarily a single linear row stream on disk.
+- **Text backend** remains human-inspectable where required; prefer a clear on-disk encoding and `storageFormatVersion` when layouts evolve. **Binary backend** may use more compact or seek-friendly layouts sooner.
+- Prefer structures that support **O(log n)** keyed access (or better) when indexes grow; avoid relying on “scan the whole file” in hot paths once Phase 3.5 index ordering is in place.
 
 ## Principles
 
@@ -39,7 +46,7 @@ SQL.txt uses human-readable text files. These constraints inform efficient imple
 
 - **Fixed-width rows** (Phase 1): Enable seekable offsets for in-place updates when row length is unchanged. Future optimization opportunity.
 - **Line-delimited format**: Enables line-by-line streaming via `StreamReader` / `ReadLine` for O(1) memory per row.
-- **Append-only for INSERT**: Already used; efficient for single-row and batch inserts.
+- **Append-only for INSERT**: Use **true append** at the filesystem layer (`AppendAllText` / append `FileStream`) for growing data and index files. **Do not** implement append as read-the-entire-file plus `WriteAllText` of the combined content (that is O(n²) bytes written for n rows). Caching layers must append to the inner storage and extend in-memory cache by appending bytes, not by rewriting whole files per row.
 - **Copy-on-write for UPDATE/DELETE**: Stream read → stream write to temp file → atomic rename. Avoids loading entire table into memory.
 
 ## Recommended Patterns
@@ -52,7 +59,8 @@ SQL.txt uses human-readable text files. These constraints inform efficient imple
 
 ### Write
 
-- **INSERT**: Append-only via `AppendAllTextAsync` or `StreamWriter` with append mode. Already efficient.
+- **INSERT**: Append-only via **true** `AppendAllTextAsync` / `AppendAllBytesAsync` on the backing accessor, or `StreamWriter` in append mode. Wrappers (e.g. LRU file cache) must not turn each append into a full-file rewrite.
+- **Multi-row INSERT:** Batched validation; batched or chunked writes per shard and per index file (Phase 3.5). See [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md).
 - **UPDATE / DELETE**: Stream-in, stream-out to temp file; `File.Move` for atomicity. Avoid building full content in memory.
 - **String building**: Use `StringBuilder` for repeated concatenation; avoid `string + string` in loops.
 
@@ -81,6 +89,31 @@ Implemented:
 - **SELECT with index:** When an index exists for the WHERE predicate, avoid full table scan. Use index lookup to get RowIds, then fetch only matching rows via `ReadRowsByRowIdsAsync` or equivalent. Do not stream all rows and filter in memory.
 - **Index STOC:** Shard Table of Contents enables O(affected rows) maintenance on shard split; avoid full index rebuild. See [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md).
 - **Statistics-ready:** Index format (sorted) and ~System metadata slots reserved for Phase 7 statistics. See [adr-006-statistics-design.md](../decisions/adr-006-statistics-design.md).
+
+## In-Memory Caching and Load-Into-Memory Mode
+
+### Layered In-Memory Approach
+
+Three complementary layers reduce disk I/O:
+
+| Layer | Scope | Benefit |
+|-------|-------|---------|
+| **Index + metadata cache** | Per-table, per-database | Eliminates repeated index/metadata file reads via `CachingIndexStore` and `CachingMetadataStore`. When cached, `CachingIndexStore` uses O(log n) binary search for lookups. |
+| **CachingFileSystemAccessor** | File-level LRU cache | Enabled by default. Keeps hot shards and indexes in memory; configurable `maxCachedBytes` (default 64 MB); write-through. Set `useFileSystemCache: false` for memory-constrained workloads. |
+| **Load-into-memory mode** | Full database | Load filesystem DB into `MemoryFileSystemAccessor`; operate entirely in RAM; optional flush on exit |
+
+### Load-Into-Memory Mode
+
+- **CLI:** `--memory` loads the database into memory; `--persist` flushes changes back to disk on exit.
+- **API:** `DatabaseEngine.LoadIntoMemoryAsync(path)` returns an engine with in-memory storage; call `FlushToDiskAsync` when done.
+- **Use case:** Interactive or batch workloads where maximum speed is desired; optionally persist at the end.
+- **Constraint:** Loading a large database consumes RAM. Consider a size check before load (e.g., warn if total DB size > 500 MB).
+
+### Caching Correctness
+
+- **Index/Metadata cache:** Write-through; cache always consistent with disk after write.
+- **CachingFileSystemAccessor:** Write-through; cache updated on write.
+- **Load-into-memory:** All ops in memory; durability only on flush (exit or explicit call).
 
 ## Reference
 

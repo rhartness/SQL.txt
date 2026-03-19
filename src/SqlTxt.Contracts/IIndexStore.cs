@@ -1,8 +1,17 @@
 namespace SqlTxt.Contracts;
 
 /// <summary>
+/// One row in an index file: composite key, physical row id, shard index.
+/// </summary>
+/// <param name="KeyValue">Composite key (multi-column keys use U+001E separator between parts).</param>
+/// <param name="RowId">_RowId of the row.</param>
+/// <param name="ShardId">Shard where the row is stored.</param>
+public readonly record struct IndexEntry(string KeyValue, long RowId, int ShardId);
+
+/// <summary>
 /// Manages index files (PK, FK, secondary indexes) with Value|ShardId|_RowId format.
 /// Backward compatible with legacy Value|_RowId (treated as ShardId=0).
+/// Lines are kept sorted by key (Phase 3.5) for binary search on disk.
 /// </summary>
 public interface IIndexStore
 {
@@ -26,6 +35,17 @@ public interface IIndexStore
     /// <param name="shardId">Shard index where row resides (0 for root file).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task AddIndexEntryAsync(string databasePath, string tableName, string indexFileName, string keyValue, long rowId, int shardId = 0, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Adds many index entries in one merge/sort/write cycle (Phase 3.5).
+    /// </summary>
+    Task AddIndexEntriesAsync(string databasePath, string tableName, string indexFileName, IReadOnlyList<IndexEntry> entries, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads all distinct key prefixes (the Value part before the first '|') from an index file.
+    /// Used for batched INSERT validation.
+    /// </summary>
+    Task<IReadOnlySet<string>> ReadAllKeyPrefixesAsync(string databasePath, string tableName, string indexFileName, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Removes an index entry by key value.

@@ -394,6 +394,10 @@ ManualTest_Text/
 ManualTest_Binary/
 **/ManualTest_Text/
 **/ManualTest_Binary/
+
+# Default manual test run output (SqlTxt.ManualTests); README explains the folder
+manual-test-artifacts/**
+!manual-test-artifacts/README.md
 ManualTests_*.log
 results.log
 

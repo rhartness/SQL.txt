@@ -27,6 +27,8 @@ Each table uses `MaxShardSize` (from table definition or database default). When
 
 `RebalanceTableAsync(tableName)` — Scans all shards, redistributes rows to balance shard sizes, updates indexes and STOC. Exposed via Engine, Service (`POST /rebalance/{tableName}`), and CLI (`sqltxt rebalance --db ./Db --table Users`). See [adr-007-sharding-parameters.md](../decisions/adr-007-sharding-parameters.md).
 
+**Implementation note (Phase 3.5):** `StreamTransformRowsAsync` takes a **snapshot of input shard paths** before writing output. Output flushes create new `Table_N` files; an incremental directory walk would mistake those for additional inputs and never complete.
+
 ## Text Encoding
 
 **UTF-8 is supported** for the text backend. Fixed-width encodings are also supported.

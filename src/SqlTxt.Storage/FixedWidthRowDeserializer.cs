@@ -24,20 +24,46 @@ public sealed class FixedWidthRowDeserializer : IRowDeserializer
 
         var data = line.Length > 2 ? line[2..] : string.Empty;
         var parts = data.Split('|');
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var workList = new List<string>(parts);
+        long xmin = 1, xmax = 0;
+        var hasMvccTail = false;
+        if (parts.Length >= table.Columns.Count + 2 &&
+            long.TryParse(parts[^1].Trim(), out var xm) &&
+            long.TryParse(parts[^2].Trim(), out var xn))
+        {
+            var rest = parts.Length - 2;
+            if (rest == table.Columns.Count || rest == table.Columns.Count + 1)
+            {
+                hasMvccTail = true;
+                xmin = xn;
+                xmax = xm;
+                workList.RemoveRange(workList.Count - 2, 2);
+            }
+        }
 
-        var hasRowId = parts.Length == table.Columns.Count + 1;
-        var offset = hasRowId ? 1 : 0;
+        var work = workList;
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var hasRowId = work.Count == table.Columns.Count + 1;
+        var offset = 0;
 
         if (hasRowId)
-            values[TableDefinition.RowIdColumnName] = parts[0].Trim();
+        {
+            values[TableDefinition.RowIdColumnName] = work[0].Trim();
+            offset = 1;
+        }
 
-        for (var i = 0; i < table.Columns.Count && i + offset < parts.Length; i++)
+        for (var i = 0; i < table.Columns.Count && offset + i < work.Count; i++)
         {
             var col = table.Columns[i];
-            var raw = parts[i + offset].Trim();
+            var raw = work[offset + i].Trim();
             var decoded = col.Type == ColumnType.Char ? FieldCodec.Decode(raw) : raw;
             values[col.Name] = decoded;
+        }
+
+        if (hasMvccTail)
+        {
+            values[TableDefinition.MvccXminKey] = xmin.ToString();
+            values[TableDefinition.MvccXmaxKey] = xmax.ToString();
         }
 
         return new RowData(values);

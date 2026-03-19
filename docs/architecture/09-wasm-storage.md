@@ -11,7 +11,7 @@ WASM-compatible storage enables SQL.txt to run in WebAssembly environments (e.g.
 When you specify `--wasm` with CLI commands, the engine uses:
 
 - **MemoryFileSystemAccessor** — In-memory implementation of `IFileSystemAccessor` with normalized path keys (`/` separator)
-- **PersistedMemoryFileSystemAccessor** — Wraps the memory store and persists to a JSON file (`.wasmdb`)
+- **PersistedMemoryFileSystemAccessor** — Wraps the memory store and persists to a JSON file (`.wasmdb`). Supports optional debounced persistence: when `debounceMs > 0`, saves are batched; call `Flush()` to force an immediate save. Useful for high-throughput INSERTs to reduce disk I/O.
 
 This allows you to create and operate databases locally "as if in WebAssembly" — the same storage abstraction that would run in a browser.
 

@@ -41,4 +41,14 @@ public static partial class SqlTxtApi
     /// <param name="cancellationToken">Cancellation token.</param>
     public static Task<Contracts.BuildSampleWikiResult> BuildSampleWikiAsync(string databasePath, Contracts.BuildSampleWikiOptions? options = null, CancellationToken cancellationToken = default) =>
         DefaultEngine.BuildSampleWikiAsync(databasePath, options, cancellationToken);
+
+    /// <summary>
+    /// Loads a filesystem-backed database into memory. All operations run in RAM for maximum speed.
+    /// Call FlushToDiskAsync when done to persist changes back to disk.
+    /// </summary>
+    /// <param name="databasePath">Full path to the database directory.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Engine, engine path (virtual root), and flush callback.</returns>
+    public static Task<(Contracts.IDatabaseEngine Engine, string EnginePath, Func<Task> FlushToDiskAsync)> LoadIntoMemoryAsync(string databasePath, CancellationToken cancellationToken = default) =>
+        Engine.DatabaseEngine.LoadIntoMemoryAsync(databasePath, cancellationToken);
 }

@@ -26,6 +26,26 @@ public sealed record TableDefinition(
     public const string RowIdColumnName = "_RowId";
 
     /// <summary>
+    /// Populated in memory after deserialize when MVCC suffix is present on disk.
+    /// </summary>
+    public const string MvccXminKey = "_MvccXmin";
+
+    /// <summary>
+    /// Populated in memory after deserialize when MVCC suffix is present on disk.
+    /// </summary>
+    public const string MvccXmaxKey = "_MvccXmax";
+
+    /// <summary>
+    /// Decimal width for MVCC xid fields in text rows (fixed-width tail).
+    /// </summary>
+    public const int MvccTextFieldWidth = 20;
+
+    /// <summary>
+    /// When set on a row during storage stream transform, that output line is omitted (MVCC vacuum).
+    /// </summary>
+    public const string VacuumOmitKey = "_VacuumOmit";
+
+    /// <summary>
     /// Storage width for _RowId (BIGINT max = 20 digits).
     /// </summary>
     public const int RowIdStorageWidth = 20;

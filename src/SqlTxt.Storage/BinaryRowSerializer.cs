@@ -12,12 +12,14 @@ public sealed class BinaryRowSerializer : IBinaryRowSerializer
     private const byte ActiveFlag = 0;
     private const byte DeletedFlag = 1;
 
-    public int GetRecordSize(TableDefinition table)
+    public int GetRecordSize(TableDefinition table) => GetRecordSize(table, false);
+
+    public int GetRecordSize(TableDefinition table, bool includeMvcc)
     {
         var size = 1 + 8; // flag + RowId
         foreach (var col in table.Columns)
             size += GetColumnByteSize(col);
-        return size;
+        return includeMvcc ? size + 16 : size;
     }
 
     private static int GetColumnByteSize(ColumnDefinition col)
@@ -35,9 +37,9 @@ public sealed class BinaryRowSerializer : IBinaryRowSerializer
         };
     }
 
-    public byte[] Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null)
+    public byte[] Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null, MvccRowVersions? mvcc = null)
     {
-        var size = GetRecordSize(table);
+        var size = GetRecordSize(table, mvcc != null);
         var buffer = new byte[size];
         var offset = 0;
 
@@ -54,6 +56,13 @@ public sealed class BinaryRowSerializer : IBinaryRowSerializer
             var colSize = GetColumnByteSize(col);
             WriteColumnValue(buffer, offset, col, value, colSize, warnings, tableName ?? table.TableName);
             offset += colSize;
+        }
+
+        if (mvcc is { } v)
+        {
+            WriteInt64LittleEndian(buffer, offset, v.Xmin);
+            offset += 8;
+            WriteInt64LittleEndian(buffer, offset, v.Xmax);
         }
 
         return buffer;

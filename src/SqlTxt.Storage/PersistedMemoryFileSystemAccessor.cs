@@ -5,17 +5,26 @@ namespace SqlTxt.Storage;
 
 /// <summary>
 /// Wraps MemoryFileSystemAccessor with persistence to a JSON file.
-/// Loads on first access; saves after each write operation.
+/// Loads on first access; saves after each write operation (or debounced when debounceMs > 0).
 /// </summary>
 public sealed class PersistedMemoryFileSystemAccessor : IFileSystemAccessor
 {
     private readonly MemoryFileSystemAccessor _inner;
     private readonly string _persistencePath;
+    private readonly int _debounceMs;
     private bool _loaded;
+    private Timer? _saveTimer;
+    private readonly object _saveLock = new();
 
-    public PersistedMemoryFileSystemAccessor(string persistencePath)
+    /// <summary>
+    /// Creates a persisted memory file system accessor.
+    /// </summary>
+    /// <param name="persistencePath">Path to the .wasmdb JSON file.</param>
+    /// <param name="debounceMs">When greater than 0, saves are debounced: writes schedule a save after this many milliseconds. Use 0 for immediate save on every write (default).</param>
+    public PersistedMemoryFileSystemAccessor(string persistencePath, int debounceMs = 0)
     {
         _persistencePath = Path.GetFullPath(persistencePath);
+        _debounceMs = Math.Max(0, debounceMs);
         _inner = new MemoryFileSystemAccessor();
     }
 
@@ -167,12 +176,48 @@ public sealed class PersistedMemoryFileSystemAccessor : IFileSystemAccessor
 
     private void Save()
     {
+        if (_debounceMs <= 0)
+        {
+            DoSave();
+            return;
+        }
+        lock (_saveLock)
+        {
+            _saveTimer?.Dispose();
+            _saveTimer = new Timer(_ =>
+            {
+                lock (_saveLock)
+                {
+                    DoSave();
+                    _saveTimer?.Dispose();
+                    _saveTimer = null;
+                }
+            }, null, _debounceMs, Timeout.Infinite);
+        }
+    }
+
+    private void DoSave()
+    {
         var dict = _inner.GetAllFiles();
         var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = false });
         var dir = Path.GetDirectoryName(_persistencePath);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
         File.WriteAllText(_persistencePath, json);
+    }
+
+    /// <summary>
+    /// Forces an immediate save to disk. Use when debounceMs is set to ensure data is persisted before process exit.
+    /// </summary>
+    public void Flush()
+    {
+        lock (_saveLock)
+        {
+            _saveTimer?.Dispose();
+            _saveTimer = null;
+            if (_loaded)
+                DoSave();
+        }
     }
 
     private sealed class SaveOnDisposeStream : Stream

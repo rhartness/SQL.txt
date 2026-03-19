@@ -9,7 +9,7 @@ namespace SqlTxt.Storage;
 /// </summary>
 public sealed class VariableWidthRowSerializer : IRowSerializer
 {
-    public string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null)
+    public string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null, MvccRowVersions? mvcc = null)
     {
         var prefix = isActive ? "A|" : "D|";
         var parts = new List<string>();
@@ -32,6 +32,12 @@ public sealed class VariableWidthRowSerializer : IRowSerializer
                     ? FieldCodec.TruncateToWidth(encoded, col.StorageWidth, warnings, tbl, col.Name)
                     : encoded;
             parts.Add(EncodeField(truncated));
+        }
+
+        if (mvcc is { } v)
+        {
+            parts.Add(EncodeField(v.Xmin.ToString()));
+            parts.Add(EncodeField(v.Xmax.ToString()));
         }
 
         return prefix + string.Join("|", parts);

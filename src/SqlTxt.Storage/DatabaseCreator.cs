@@ -47,7 +47,8 @@ public sealed class DatabaseCreator
             numberFormat = numberFormat ?? "standard",
             textEncoding = effectiveEncoding,
             defaultMaxShardSize = effectiveDefault,
-            storageBackend = effectiveBackend
+            storageBackend = effectiveBackend,
+            mvcc = true
         };
 
         var manifestPath = _fs.Combine(dbDir, "manifest.json");

@@ -23,11 +23,13 @@ Phases execute in this order:
 3. **Phase 2** — Integrity and Indexes (PK, FK, UNIQUE, CREATE INDEX)
 4. **Phase 3** — VARCHAR and String Types
 
-5. **Phase 4** — Query Enrichment (JOINs, aggregates, ORDER BY, GROUP BY, subqueries)
-6. **CTE Phase** — Common Table Expressions (WITH, WITH RECURSIVE)
-7. **Phase 5** — Schema Evolution and Transactions (ALTER TABLE, BEGIN/COMMIT/ROLLBACK)
-8. **Phase 6** — Programmability (Views, Procedures, Functions)
-9. **Phase 7** — Statistics (CREATE STATISTICS)
+5. **Phase 3.5** — Storage & ingest efficiency (engine/storage implementation: batched multi-row INSERT I/O, true append semantics, sorted on-disk indexes per ADR-008). Not a new SQL:2023 clause; improves execution of existing INSERT.
+
+6. **Phase 4** — Query Enrichment (JOINs, aggregates, ORDER BY, GROUP BY, subqueries)
+7. **CTE Phase** — Common Table Expressions (WITH, WITH RECURSIVE)
+8. **Phase 5** — Schema Evolution and Transactions (ALTER TABLE, BEGIN/COMMIT/ROLLBACK)
+9. **Phase 6** — Programmability (Views, Procedures, Functions)
+10. **Phase 7** — Statistics (CREATE STATISTICS)
 
 ---
 
@@ -37,8 +39,9 @@ Phases execute in this order:
 |-------|-------------------|--------|
 | Phase 1 | Core DML/DDL (CREATE TABLE, INSERT, SELECT, UPDATE, DELETE); fixed-width types | Done |
 | Phase 2 | PRIMARY KEY, FOREIGN KEY, UNIQUE, CREATE INDEX | Done |
-| Phase 3 | VARCHAR, T055 (LPAD, RPAD), T056 (multi-char TRIM), T062 (CHAR_LENGTH, OCTET_LENGTH), T081 (optional VARCHAR max) | Planned |
-| Phase 4 | F401 (JOIN), F406 (FULL OUTER), F407 (CROSS), F405 (NATURAL); aggregates; ORDER BY, GROUP BY, HAVING; subqueries; T626 (ANY_VALUE) | Planned |
+| Phase 3 | VARCHAR, T055 (LPAD, RPAD), T056 (multi-char TRIM), T062 (CHAR_LENGTH, OCTET_LENGTH), T081 (optional VARCHAR max) | Done |
+| Phase 3.5 | INSERT execution efficiency (batched validation/writes, sorted index files); see [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md) | Next |
+| Phase 4 | F401 (JOIN), F406 (FULL OUTER), F407 (CROSS), F405 (NATURAL); aggregates; ORDER BY, GROUP BY, HAVING; subqueries; T626 (ANY_VALUE) | After 3.5 |
 | CTE Phase | WITH clause; recursive CTE | Planned |
 | Phase 5 | F387 (ALTER COLUMN), F388 (ADD/DROP CONSTRAINT, RENAME); F112–F114 (isolation levels) | Planned |
 | Phase 6 | CREATE VIEW; CREATE PROCEDURE; CREATE FUNCTION | Planned |

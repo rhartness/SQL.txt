@@ -54,4 +54,10 @@ public interface IDatabaseEngine
     /// <param name="options">Optional build options.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task<BuildSampleWikiResult> BuildSampleWikiAsync(string databasePath, BuildSampleWikiOptions? options = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes MVCC row versions that are fully superseded (xmax committed at or before the current watermark).
+    /// Uses stream transform omit markers; see ADR-010.
+    /// </summary>
+    Task<int> VacuumMvccRowsAsync(string databasePath, string tableName, CancellationToken cancellationToken = default);
 }

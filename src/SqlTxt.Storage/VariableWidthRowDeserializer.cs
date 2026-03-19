@@ -51,6 +51,20 @@ public sealed class VariableWidthRowDeserializer : IRowDeserializer
             fieldIndex++;
         }
 
+        if (pos < data.Length)
+        {
+            var (xminStr, p2) = ParseLengthPrefixedField(data, pos);
+            if (p2 < data.Length)
+            {
+                var (xmaxStr, _) = ParseLengthPrefixedField(data, p2);
+                if (long.TryParse(xminStr.Trim(), out var xmin) && long.TryParse(xmaxStr.Trim(), out var xmax))
+                {
+                    values[TableDefinition.MvccXminKey] = xmin.ToString();
+                    values[TableDefinition.MvccXmaxKey] = xmax.ToString();
+                }
+            }
+        }
+
         return new RowData(values);
     }
 

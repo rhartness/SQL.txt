@@ -12,36 +12,73 @@ namespace SqlTxt.Engine;
 public sealed class DatabaseEngine : IDatabaseEngine
 {
     private readonly ICommandParser? _parser;
+    private readonly SqlCommandParser _defaultParser;
+    private readonly object _defaultParserLock = new();
     private readonly IDatabaseLockManager _lockManager;
+    private readonly IMvccXidStore _mvccXidStore;
+    private readonly IRowLockManager _rowLockManager;
     private readonly Contracts.IFileSystemAccessor _fs;
     private readonly DatabaseCreator _dbCreator;
     private readonly ISchemaStore _schemaStore;
     private readonly TableDataStore _tableDataStore;
-    private readonly MetadataStore _metadataStore;
+    private readonly IMetadataStore _metadataStore;
     private readonly IIndexStore _indexStore;
     private readonly IRowIdSequenceStore _rowIdStore;
+
+    /// <summary>
+    /// Parses SQL. When no custom <see cref="ICommandParser"/> is supplied, uses a shared <see cref="SqlCommandParser"/> under a lock (parser is not thread-safe across concurrent calls).
+    /// </summary>
+    private object ParseSql(string sql)
+    {
+        if (_parser is not null)
+            return _parser.Parse(sql);
+        lock (_defaultParserLock)
+            return _defaultParser.Parse(sql);
+    }
 
     public DatabaseEngine(
         ICommandParser? parser = null,
         IDatabaseLockManager? lockManager = null,
         Contracts.IFileSystemAccessor? fs = null,
         IIndexStore? indexStore = null,
-        IRowIdSequenceStore? rowIdStore = null)
+        IRowIdSequenceStore? rowIdStore = null,
+        IMvccXidStore? mvccXidStore = null,
+        IRowLockManager? rowLockManager = null,
+        bool useFileSystemCache = true,
+        long maxCachedBytes = 67_108_864)
     {
         _parser = parser;
+        _defaultParser = new SqlCommandParser();
         _lockManager = lockManager ?? new DatabaseLockManager();
-        _fs = fs ?? new FileSystemAccessor();
-        _indexStore = indexStore ?? new IndexStore(_fs);
+        var baseFs = fs ?? new FileSystemAccessor();
+        _fs = useFileSystemCache && fs is null ? new CachingFileSystemAccessor(baseFs, maxCachedBytes) : baseFs;
+        _indexStore = indexStore ?? new CachingIndexStore(new IndexStore(_fs), _fs);
         _rowIdStore = rowIdStore ?? new RowIdSequenceStore(_fs);
+        _mvccXidStore = mvccXidStore ?? new MvccXidStore(_fs);
+        _rowLockManager = rowLockManager ?? new RowLockManager();
 
         var serializer = new FormatAwareRowSerializer();
         var deserializer = new FormatAwareRowDeserializer();
         var schemaStore = new SchemaStore(_fs);
         _schemaStore = new CachingSchemaStore(schemaStore);
-        _metadataStore = new MetadataStore(_fs);
+        _metadataStore = new CachingMetadataStore(new MetadataStore(_fs));
         _dbCreator = new DatabaseCreator(_fs);
         var backendResolver = new CachingStorageBackendResolver(new StorageBackendResolver(_dbCreator));
         _tableDataStore = new TableDataStore(_fs, serializer, deserializer, _schemaStore, _rowIdStore, stocStore: null, indexStore: _indexStore, backendResolver: backendResolver);
+    }
+
+    /// <summary>
+    /// Loads a filesystem-backed database into memory and returns an engine configured for in-memory operation.
+    /// Call FlushToDiskAsync when done to persist changes back to disk.
+    /// </summary>
+    /// <param name="databasePath">Full path to the database directory.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Engine, engine path (virtual root), and flush callback.</returns>
+    public static async Task<(IDatabaseEngine Engine, string EnginePath, Func<Task> FlushToDiskAsync)> LoadIntoMemoryAsync(string databasePath, CancellationToken cancellationToken = default)
+    {
+        var (memory, virtualRoot) = await DatabaseLoader.LoadIntoMemoryAsync(databasePath, cancellationToken).ConfigureAwait(false);
+        var engine = new DatabaseEngine(fs: memory);
+        return (engine, virtualRoot, () => DatabaseLoader.SaveToDiskAsync(memory, databasePath, virtualRoot));
     }
 
     public async Task<EngineResult> ExecuteAsync(string commandText, string databasePath, CancellationToken cancellationToken = default)
@@ -51,8 +88,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         object cmd;
         try
         {
-            var parser = _parser ?? new SqlCommandParser();
-            cmd = parser.Parse(commandText);
+            cmd = ParseSql(commandText);
         }
         catch (ParseException)
         {
@@ -66,32 +102,66 @@ public sealed class DatabaseEngine : IDatabaseEngine
             return new EngineResult(0);
         }
 
-        await using (await _lockManager.AcquireWriteLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false))
+        if (cmd is CreateTableCommand createTable)
         {
-            if (cmd is CreateTableCommand createTable)
+            await using (await _lockManager.AcquireWriteLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false))
                 return await ExecuteCreateTableAsync(resolvedPath, createTable, cancellationToken).ConfigureAwait(false);
-            if (cmd is CreateIndexCommand createIndex)
+        }
+
+        if (cmd is CreateIndexCommand createIndex)
+        {
+            await using (await _lockManager.AcquireWriteLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false))
                 return await ExecuteCreateIndexAsync(resolvedPath, createIndex, cancellationToken).ConfigureAwait(false);
-            if (cmd is InsertCommand insert)
-                return await ExecuteInsertAsync(resolvedPath, insert, cancellationToken).ConfigureAwait(false);
-            if (cmd is UpdateCommand update)
-                return await ExecuteUpdateAsync(resolvedPath, update, cancellationToken).ConfigureAwait(false);
-            if (cmd is DeleteCommand delete)
-                return await ExecuteDeleteAsync(resolvedPath, delete, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (cmd is InsertCommand insertCmd)
+        {
+            await using var _schemaIns = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+            var insTable = await _schemaStore.ReadSchemaAsync(resolvedPath, insertCmd.TableName, cancellationToken).ConfigureAwait(false)
+                ?? throw new SchemaException($"Table '{insertCmd.TableName}' not found");
+            var readIns = GetFkParentTableNames(insTable);
+            await using var _tblIns = await _lockManager.AcquireFkOrderedLocksAsync(resolvedPath, readIns, new[] { insertCmd.TableName }, cancellationToken).ConfigureAwait(false);
+            return await ExecuteInsertAsync(resolvedPath, insertCmd, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (cmd is UpdateCommand updateCmd)
+        {
+            await using var _schemaUpd = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+            var updTable = await _schemaStore.ReadSchemaAsync(resolvedPath, updateCmd.TableName, cancellationToken).ConfigureAwait(false)
+                ?? throw new SchemaException($"Table '{updateCmd.TableName}' not found");
+            var readUpd = GetFkParentTableNames(updTable);
+            await using var _tblUpd = await _lockManager.AcquireFkOrderedLocksAsync(resolvedPath, readUpd, new[] { updateCmd.TableName }, cancellationToken).ConfigureAwait(false);
+            return await ExecuteUpdateAsync(resolvedPath, updateCmd, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (cmd is DeleteCommand deleteCmd)
+        {
+            await using var _schemaDel = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+            var delTable = await _schemaStore.ReadSchemaAsync(resolvedPath, deleteCmd.TableName, cancellationToken).ConfigureAwait(false)
+                ?? throw new SchemaException($"Table '{deleteCmd.TableName}' not found");
+            var readDel = GetFkParentTableNames(delTable);
+            await using var _tblDel = await _lockManager.AcquireFkOrderedLocksAsync(resolvedPath, readDel, new[] { deleteCmd.TableName }, cancellationToken).ConfigureAwait(false);
+            return await ExecuteDeleteAsync(resolvedPath, deleteCmd, cancellationToken).ConfigureAwait(false);
         }
 
         if (cmd is SelectCommand select)
         {
-            if (!select.WithNoLock)
-            {
-                await using (await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false))
-                    return await ExecuteSelectAsync(resolvedPath, select, cancellationToken).ConfigureAwait(false);
-            }
-            return await ExecuteSelectAsync(resolvedPath, select, cancellationToken).ConfigureAwait(false);
+            if (select.WithNoLock)
+                return await ExecuteSelectAsync(resolvedPath, select, null, cancellationToken).ConfigureAwait(false);
+
+            await using var _schemaSel = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+            await using var _tblSel = await _lockManager.AcquireTableReadLocksAsync(resolvedPath, new[] { select.TableName }, cancellationToken).ConfigureAwait(false);
+            long? snap = null;
+            if (await MvccManifest.ReadMvccEnabledAsync(_fs, resolvedPath, cancellationToken).ConfigureAwait(false))
+                snap = await _mvccXidStore.GetCommittedXidAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+            return await ExecuteSelectAsync(resolvedPath, select, snap, cancellationToken).ConfigureAwait(false);
         }
 
         throw new ParseException($"Unsupported command type: {cmd.GetType().Name}");
     }
+
+    private static IReadOnlyList<string> GetFkParentTableNames(TableDefinition table) =>
+        table.ForeignKeys.Select(fk => fk.ReferencedTable).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
     public async Task<int> RebalanceTableAsync(string databasePath, string tableName, CancellationToken cancellationToken = default)
     {
@@ -123,8 +193,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         object cmd;
         try
         {
-            var parser = _parser ?? new SqlCommandParser();
-            cmd = parser.Parse(queryText);
+            cmd = ParseSql(queryText);
         }
         catch (ParseException)
         {
@@ -133,12 +202,15 @@ public sealed class DatabaseEngine : IDatabaseEngine
 
         if (cmd is SelectCommand select)
         {
-            if (!select.WithNoLock)
-            {
-                await using (await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false))
-                    return await ExecuteSelectAsync(resolvedPath, select, cancellationToken).ConfigureAwait(false);
-            }
-            return await ExecuteSelectAsync(resolvedPath, select, cancellationToken).ConfigureAwait(false);
+            if (select.WithNoLock)
+                return await ExecuteSelectAsync(resolvedPath, select, null, cancellationToken).ConfigureAwait(false);
+
+            await using var _schQ = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+            await using var _tblQ = await _lockManager.AcquireTableReadLocksAsync(resolvedPath, new[] { select.TableName }, cancellationToken).ConfigureAwait(false);
+            long? snap = null;
+            if (await MvccManifest.ReadMvccEnabledAsync(_fs, resolvedPath, cancellationToken).ConfigureAwait(false))
+                snap = await _mvccXidStore.GetCommittedXidAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+            return await ExecuteSelectAsync(resolvedPath, select, snap, cancellationToken).ConfigureAwait(false);
         }
 
         throw new ParseException("Expected SELECT query");
@@ -169,73 +241,30 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 if (string.IsNullOrWhiteSpace(trimmed))
                     continue;
 
-                var parser = _parser ?? new SqlCommandParser();
-                var cmd = parser.Parse(trimmed);
-
-                if (cmd is CreateDatabaseCommand createDb)
+                object cmd;
+                try
                 {
-                    var parent = Path.GetDirectoryName(currentDbPath) ?? currentDbPath;
-                    var dbRoot = _fs.Combine(parent, createDb.DatabaseName);
-                    _dbCreator.CreateDatabase(dbRoot, createDb.NumberFormat, createDb.TextEncoding, createDb.DefaultMaxShardSize, createDb.StorageBackend);
-                    currentDbPath = dbRoot;
+                    cmd = ParseSql(trimmed);
+                }
+                catch (ParseException)
+                {
+                    throw;
+                }
+
+                if (cmd is CreateDatabaseCommand cdb)
+                {
+                    await ExecuteAsync(trimmed, currentDbPath, cancellationToken).ConfigureAwait(false);
+                    currentDbPath = _fs.Combine(currentDbPath, cdb.DatabaseName);
                     totalExecuted++;
                     continue;
                 }
 
-                if (cmd is SelectCommand select)
-                {
-                    EngineResult result;
-                    if (select.WithNoLock)
-                        result = await ExecuteSelectAsync(currentDbPath, select, cancellationToken).ConfigureAwait(false);
-                    else
-                    {
-                        await using (await _lockManager.AcquireReadLockAsync(currentDbPath, cancellationToken).ConfigureAwait(false))
-                            result = await ExecuteSelectAsync(currentDbPath, select, cancellationToken).ConfigureAwait(false);
-                    }
-                    if (result.Warnings != null)
-                        allWarnings.AddRange(result.Warnings);
-                    if (result.QueryResult != null)
-                        queryResults.Add(result.QueryResult);
-                    totalExecuted++;
-                    continue;
-                }
-
-                await using (await _lockManager.AcquireWriteLockAsync(currentDbPath, cancellationToken).ConfigureAwait(false))
-                {
-                    if (cmd is CreateTableCommand createTable)
-                    {
-                        await ExecuteCreateTableAsync(currentDbPath, createTable, cancellationToken).ConfigureAwait(false);
-                        totalExecuted++;
-                    }
-                    else if (cmd is CreateIndexCommand createIndex)
-                    {
-                        await ExecuteCreateIndexAsync(currentDbPath, createIndex, cancellationToken).ConfigureAwait(false);
-                        totalExecuted++;
-                    }
-                    else if (cmd is InsertCommand insert)
-                    {
-                        var r = await ExecuteInsertAsync(currentDbPath, insert, cancellationToken).ConfigureAwait(false);
-                        if (r.Warnings != null)
-                            allWarnings.AddRange(r.Warnings);
-                        totalExecuted++;
-                    }
-                    else if (cmd is UpdateCommand update)
-                    {
-                        var r = await ExecuteUpdateAsync(currentDbPath, update, cancellationToken).ConfigureAwait(false);
-                        if (r.Warnings != null)
-                            allWarnings.AddRange(r.Warnings);
-                        totalExecuted++;
-                    }
-                    else if (cmd is DeleteCommand delete)
-                    {
-                        await ExecuteDeleteAsync(currentDbPath, delete, cancellationToken).ConfigureAwait(false);
-                        totalExecuted++;
-                    }
-                    else
-                    {
-                        throw new ParseException($"Unsupported command in script: {cmd.GetType().Name}");
-                    }
-                }
+                var result = await ExecuteAsync(trimmed, currentDbPath, cancellationToken).ConfigureAwait(false);
+                if (result.Warnings != null)
+                    allWarnings.AddRange(result.Warnings);
+                if (result.QueryResult != null)
+                    queryResults.Add(result.QueryResult);
+                totalExecuted++;
             }
         }
 
@@ -401,7 +430,7 @@ public sealed class DatabaseEngine : IDatabaseEngine
         }
 
         var allWarnings = new List<string>();
-        var insertedCount = 0;
+        var materialized = new List<RowData>();
         var rowIndex = 0;
 
         foreach (var values in cmd.ValueRows)
@@ -417,79 +446,83 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 rowDict[colName] = value;
             }
 
-            var row = new RowData(rowDict);
-
-            if (table.PrimaryKey.Count > 0)
-            {
-                var pkValues = table.PrimaryKey.Select(c => rowDict.TryGetValue(c, out var v) ? v : "").ToList();
-                var pkKey = IndexStore.FormatCompositeKey(pkValues);
-                var exists = await _indexStore.ContainsKeyAsync(databasePath, cmd.TableName, "_PK", pkKey, cancellationToken).ConfigureAwait(false);
-                if (exists)
-                    throw new ConstraintViolationException($"Duplicate primary key value in table '{cmd.TableName}'.");
-            }
-
-            foreach (var fk in table.ForeignKeys)
-            {
-                var fkValue = rowDict.TryGetValue(fk.ColumnName, out var fkv) ? fkv : "";
-                var parentExists = await _indexStore.ContainsKeyAsync(databasePath, fk.ReferencedTable, "_PK", fkValue, cancellationToken).ConfigureAwait(false);
-                if (!parentExists)
-                    throw new ConstraintViolationException($"Foreign key violation: '{fk.ReferencedTable}.{fk.ReferencedColumn}' has no row with value '{fkValue}'.");
-            }
-
-            if (table.UniqueColumns.Count > 0)
-            {
-                var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => rowDict.TryGetValue(c, out var v) ? v : "").ToList());
-                var uqExists = await _indexStore.ContainsKeyAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, cancellationToken).ConfigureAwait(false);
-                if (uqExists)
-                    throw new ConstraintViolationException($"Duplicate unique value in table '{cmd.TableName}'.");
-            }
-
-            long rowId = 0;
             if (usesRowId)
             {
+                long rowId;
                 if (rowIdCount > 0)
                     rowId = rowIdStart + rowIndex;
                 else
                     rowId = await _rowIdStore.GetNextAndIncrementAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
                 rowDict[TableDefinition.RowIdColumnName] = rowId.ToString();
-                row = new RowData(rowDict);
+                rowIndex++;
             }
 
-            var warnings = new List<string>();
-            var (shardIndex, appendedRowId) = await _tableDataStore.AppendRowAsync(databasePath, cmd.TableName, row, cancellationToken, warnings).ConfigureAwait(false);
-            rowId = appendedRowId;
-            if (warnings.Count > 0)
-                allWarnings.AddRange(warnings);
+            materialized.Add(new RowData(rowDict));
+        }
+
+        await ValidateInsertBatchAsync(databasePath, table, cmd.TableName, materialized, cancellationToken).ConfigureAwait(false);
+
+        var mvccOn = await MvccManifest.ReadMvccEnabledAsync(_fs, databasePath, cancellationToken).ConfigureAwait(false);
+        MvccRowVersions? mvccVers = null;
+        var xid = 0L;
+        if (mvccOn)
+        {
+            xid = await _mvccXidStore.AllocateXidAsync(databasePath, cancellationToken).ConfigureAwait(false);
+            mvccVers = new MvccRowVersions(xid, 0);
+        }
+
+        var appendResults = await _tableDataStore.AppendRowsAsync(databasePath, cmd.TableName, materialized, cancellationToken, allWarnings, mvccVers).ConfigureAwait(false);
+
+        if (mvccOn && xid > 0)
+            await _mvccXidStore.CommitXidAsync(databasePath, xid, cancellationToken).ConfigureAwait(false);
+
+        var indexBatches = new Dictionary<string, List<IndexEntry>>(StringComparer.Ordinal);
+
+        void QueueIndex(string file, IndexEntry e)
+        {
+            if (!indexBatches.TryGetValue(file, out var list))
+            {
+                list = [];
+                indexBatches[file] = list;
+            }
+            list.Add(e);
+        }
+
+        for (var i = 0; i < materialized.Count; i++)
+        {
+            var row = materialized[i];
+            var (shardIndex, rowId) = appendResults[i];
 
             if (table.PrimaryKey.Count > 0)
             {
                 var pkKey = IndexStore.FormatCompositeKey(table.PrimaryKey.Select(c => row.GetValue(c) ?? "").ToList());
-                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_PK", pkKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+                QueueIndex("_PK", new IndexEntry(pkKey, rowId, shardIndex));
             }
 
             foreach (var fk in table.ForeignKeys)
             {
                 var fkValue = row.GetValue(fk.ColumnName) ?? "";
-                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, $"_FK_{fk.ReferencedTable}", fkValue, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+                QueueIndex($"_FK_{fk.ReferencedTable}", new IndexEntry(fkValue, rowId, shardIndex));
             }
 
             if (table.UniqueColumns.Count > 0)
             {
                 var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => row.GetValue(c) ?? "").ToList());
-                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, "_UQ_" + string.Join("_", table.UniqueColumns), uqKey, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+                QueueIndex("_UQ_" + string.Join("_", table.UniqueColumns), new IndexEntry(uqKey, rowId, shardIndex));
             }
 
             foreach (var idx in table.Indexes)
             {
                 var idxFileName = GetIndexFileNameForDefinition(table, idx);
                 var key = IndexStore.FormatCompositeKeyFromRow(row, idx.ColumnNames);
-                await _indexStore.AddIndexEntryAsync(databasePath, cmd.TableName, idxFileName, key, rowId, shardIndex, cancellationToken).ConfigureAwait(false);
+                QueueIndex(idxFileName, new IndexEntry(key, rowId, shardIndex));
             }
-
-            insertedCount++;
-            rowIndex++;
         }
 
+        foreach (var kv in indexBatches)
+            await _indexStore.AddIndexEntriesAsync(databasePath, cmd.TableName, kv.Key, kv.Value, cancellationToken).ConfigureAwait(false);
+
+        var insertedCount = materialized.Count;
         if (insertedCount > 0)
         {
             var (total, active, deleted) = await _metadataStore.ReadMetadataAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false);
@@ -499,7 +532,50 @@ public sealed class DatabaseEngine : IDatabaseEngine
         return new EngineResult(insertedCount, Warnings: allWarnings.Count > 0 ? allWarnings : null);
     }
 
-    private async Task<EngineResult> ExecuteSelectAsync(string databasePath, SelectCommand cmd, CancellationToken cancellationToken)
+    private async Task ValidateInsertBatchAsync(string databasePath, TableDefinition table, string tableName, IReadOnlyList<RowData> rows, CancellationToken cancellationToken)
+    {
+        if (table.PrimaryKey.Count > 0)
+        {
+            var existing = await _indexStore.ReadAllKeyPrefixesAsync(databasePath, tableName, "_PK", cancellationToken).ConfigureAwait(false);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                var pkKey = IndexStore.FormatCompositeKey(table.PrimaryKey.Select(c => row.GetValue(c) ?? "").ToList());
+                if (!seen.Add(pkKey))
+                    throw new ConstraintViolationException($"Duplicate primary key value in table '{tableName}'.");
+                if (existing.Contains(pkKey))
+                    throw new ConstraintViolationException($"Duplicate primary key value in table '{tableName}'.");
+            }
+        }
+
+        foreach (var fk in table.ForeignKeys)
+        {
+            var parentKeys = await _indexStore.ReadAllKeyPrefixesAsync(databasePath, fk.ReferencedTable, "_PK", cancellationToken).ConfigureAwait(false);
+            foreach (var row in rows)
+            {
+                var fkValue = row.GetValue(fk.ColumnName) ?? "";
+                if (!parentKeys.Contains(fkValue))
+                    throw new ConstraintViolationException($"Foreign key violation: '{fk.ReferencedTable}.{fk.ReferencedColumn}' has no row with value '{fkValue}'.");
+            }
+        }
+
+        if (table.UniqueColumns.Count > 0)
+        {
+            var uqName = "_UQ_" + string.Join("_", table.UniqueColumns);
+            var existingUq = await _indexStore.ReadAllKeyPrefixesAsync(databasePath, tableName, uqName, cancellationToken).ConfigureAwait(false);
+            var seenUq = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                var uqKey = IndexStore.FormatCompositeKey(table.UniqueColumns.Select(c => row.GetValue(c) ?? "").ToList());
+                if (!seenUq.Add(uqKey))
+                    throw new ConstraintViolationException($"Duplicate unique value in table '{tableName}'.");
+                if (existingUq.Contains(uqKey))
+                    throw new ConstraintViolationException($"Duplicate unique value in table '{tableName}'.");
+            }
+        }
+    }
+
+    private async Task<EngineResult> ExecuteSelectAsync(string databasePath, SelectCommand cmd, long? mvccSnapshotCommitted, CancellationToken cancellationToken)
     {
         await EnsureDatabaseExistsAsync(databasePath, cancellationToken).ConfigureAwait(false);
 
@@ -526,8 +602,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
         }
 
         var rowSource = indexRowIds != null && indexRowIds.Count > 0
-            ? _tableDataStore.ReadRowsByRowIdsAsync(databasePath, cmd.TableName, indexRowIds, cancellationToken)
-            : _tableDataStore.ReadRowsAsync(databasePath, cmd.TableName, cancellationToken);
+            ? _tableDataStore.ReadRowsByRowIdsAsync(databasePath, cmd.TableName, indexRowIds, cancellationToken, mvccSnapshotCommitted)
+            : _tableDataStore.ReadRowsAsync(databasePath, cmd.TableName, cancellationToken, mvccSnapshotCommitted);
 
         await foreach (var row in rowSource.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
@@ -541,7 +617,10 @@ public sealed class DatabaseEngine : IDatabaseEngine
             var projected = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var col in columnNames)
             {
-                if (col.Equals(TableDefinition.RowIdColumnName, StringComparison.OrdinalIgnoreCase))
+                if (col.Equals(TableDefinition.RowIdColumnName, StringComparison.OrdinalIgnoreCase)
+                    || col.Equals(TableDefinition.MvccXminKey, StringComparison.OrdinalIgnoreCase)
+                    || col.Equals(TableDefinition.MvccXmaxKey, StringComparison.OrdinalIgnoreCase)
+                    || col.Equals(TableDefinition.VacuumOmitKey, StringComparison.OrdinalIgnoreCase))
                     continue;
                 var val = row.GetValue(col);
                 if (val != null)
@@ -599,6 +678,11 @@ public sealed class DatabaseEngine : IDatabaseEngine
         var uqUpdates = new List<(string OldKey, string NewKey, long RowId)>();
         var indexUpdates = new List<(string OldKey, string NewKey, long RowId, string IndexFileName)>();
 
+        var mvccOn = await MvccManifest.ReadMvccEnabledAsync(_fs, databasePath, cancellationToken).ConfigureAwait(false);
+        var mvccXid = 0L;
+        if (mvccOn)
+            mvccXid = await _mvccXidStore.AllocateXidAsync(databasePath, cancellationToken).ConfigureAwait(false);
+
         (bool IsActive, RowData Row) Transform((bool IsActive, RowData Row) r)
         {
             if (!r.IsActive)
@@ -617,6 +701,11 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 var column = table.Columns.FirstOrDefault(c => c.Name.Equals(col, StringComparison.OrdinalIgnoreCase))
                     ?? throw new SchemaException($"Column '{col}' not found");
                 dict[col] = value;
+            }
+            if (mvccOn && mvccXid > 0)
+            {
+                dict[TableDefinition.MvccXminKey] = mvccXid.ToString();
+                dict[TableDefinition.MvccXmaxKey] = "0";
             }
             var newRow = new RowData(dict);
 
@@ -683,6 +772,9 @@ public sealed class DatabaseEngine : IDatabaseEngine
         }
 
         var (total, active, delCount) = await _tableDataStore.StreamTransformRowsAsync(databasePath, cmd.TableName, Transform, cancellationToken, warnings).ConfigureAwait(false);
+
+        if (mvccOn && mvccXid > 0)
+            await _mvccXidStore.CommitXidAsync(databasePath, mvccXid, cancellationToken).ConfigureAwait(false);
 
         if (pkUpdates.Count > 0)
         {
@@ -866,6 +958,40 @@ public sealed class DatabaseEngine : IDatabaseEngine
         await _metadataStore.UpdateMetadataAsync(databasePath, cmd.TableName, total, active, delCount, cancellationToken).ConfigureAwait(false);
 
         return new EngineResult(deleted);
+    }
+
+    /// <inheritdoc />
+    public async Task<int> VacuumMvccRowsAsync(string databasePath, string tableName, CancellationToken cancellationToken = default)
+    {
+        var resolvedPath = _fs.GetFullPath(databasePath);
+        await EnsureDatabaseExistsAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+        if (!await MvccManifest.ReadMvccEnabledAsync(_fs, resolvedPath, cancellationToken).ConfigureAwait(false))
+            return 0;
+
+        var committed = await _mvccXidStore.GetCommittedXidAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+        await using var _sch = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
+        await using var _tbl = await _lockManager.AcquireTableWriteLocksAsync(resolvedPath, new[] { tableName }, cancellationToken).ConfigureAwait(false);
+
+        var removed = 0;
+        (bool IsActive, RowData Row) Transform((bool IsActive, RowData Row) r)
+        {
+            if (!r.IsActive)
+                return r;
+            var (_, xmax) = RowMvccHelper.GetXminXmax(r.Row);
+            if (xmax > 0 && xmax <= committed)
+            {
+                removed++;
+                var d = new Dictionary<string, string>(r.Row.Values, StringComparer.OrdinalIgnoreCase)
+                {
+                    [TableDefinition.VacuumOmitKey] = "1"
+                };
+                return (r.IsActive, new RowData(d));
+            }
+            return r;
+        }
+
+        await _tableDataStore.StreamTransformRowsAsync(resolvedPath, tableName, Transform, cancellationToken).ConfigureAwait(false);
+        return removed;
     }
 
     private async Task EnsureDatabaseExistsAsync(string databasePath, CancellationToken cancellationToken)

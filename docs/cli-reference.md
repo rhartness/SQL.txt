@@ -9,6 +9,17 @@ Use WASM-compatible in-memory storage, persisted to a `.wasmdb` file. When speci
 - For `create-db`: path becomes the persistence file (e.g., `./MyDb` creates `./MyDb.wasmdb`)
 - For other commands: `--db` must point to the `.wasmdb` file (e.g., `--db ./MyDb.wasmdb --wasm`)
 
+### --memory
+
+Load a filesystem-backed database into memory and operate entirely in RAM. Use for maximum speed on interactive or batch workloads. Does not persist changes unless combined with `--persist`.
+
+- For `query`, `exec`, `script`, `inspect`, `rebalance`: loads the database directory into memory before running
+- Path must be a directory (filesystem DB), not a `.wasmdb` file
+
+### --persist
+
+With `--memory`: save changes back to disk when the command completes. Without `--persist`, `--memory` mode is ephemeral (no flush on exit).
+
 ## Commands
 
 ### create-db
@@ -36,7 +47,7 @@ sqltxt create-db ./WikiDb --storage:text
 Executes a single SQL statement (CREATE, INSERT, UPDATE, DELETE).
 
 ```
-sqltxt exec --db <path> [--wasm] "<statement>"
+sqltxt exec --db <path> [--wasm] [--memory] [--persist] "<statement>"
 ```
 
 **Examples:**
@@ -44,6 +55,7 @@ sqltxt exec --db <path> [--wasm] "<statement>"
 sqltxt exec --db ./WikiDb "CREATE TABLE User (Id CHAR(10), Name CHAR(50))"
 sqltxt exec --db ./WikiDb "CREATE TABLE Notes (Id CHAR(10), Title VARCHAR(100), Body VARCHAR(1000))"
 sqltxt exec --db ./WikiDb.wasmdb --wasm "INSERT INTO User (Id, Name) VALUES ('1', 'Alice')"
+sqltxt exec --db ./WikiDb --memory --persist "INSERT INTO User (Id, Name) VALUES ('2', 'Bob')"
 ```
 
 ### query
@@ -51,13 +63,14 @@ sqltxt exec --db ./WikiDb.wasmdb --wasm "INSERT INTO User (Id, Name) VALUES ('1'
 Executes a SELECT query and prints the result grid.
 
 ```
-sqltxt query --db <path> [--wasm] "<select>"
+sqltxt query --db <path> [--wasm] [--memory] [--persist] "<select>"
 ```
 
 **Examples:**
 ```bash
 sqltxt query --db ./WikiDb "SELECT * FROM User"
 sqltxt query --db ./WikiDb.wasmdb --wasm "SELECT * FROM User"
+sqltxt query --db ./WikiDb --memory "SELECT * FROM Page"
 sqltxt query --db ./WikiDb "SELECT Id, Name FROM User WHERE Id = '1'"
 ```
 
@@ -66,7 +79,7 @@ sqltxt query --db ./WikiDb "SELECT Id, Name FROM User WHERE Id = '1'"
 Executes a SQL script file (semicolon-separated statements).
 
 ```
-sqltxt script --db <path> [--wasm] <file>
+sqltxt script --db <path> [--wasm] [--memory] [--persist] <file>
 ```
 
 **Examples:**
@@ -80,7 +93,7 @@ sqltxt script --db ./WikiDb.wasmdb --wasm docs/samples/wiki-database/seed-wiki.s
 Lists tables, columns, and row counts.
 
 ```
-sqltxt inspect --db <path> [--wasm]
+sqltxt inspect --db <path> [--wasm] [--memory] [--persist]
 ```
 
 **Examples:**
@@ -94,7 +107,7 @@ sqltxt inspect --db ./WikiDb.wasmdb --wasm
 Rebalances shards for a table. Compacts soft-deleted rows and redistributes data across shards according to `MaxShardSize`. Use after many deletes to reclaim space.
 
 ```
-sqltxt rebalance --db <path> --table <name> [--wasm]
+sqltxt rebalance --db <path> --table <name> [--wasm] [--memory] [--persist]
 ```
 
 **Examples:**

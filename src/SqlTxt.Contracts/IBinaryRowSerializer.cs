@@ -11,6 +11,11 @@ public interface IBinaryRowSerializer
     int GetRecordSize(TableDefinition table);
 
     /// <summary>
+    /// Record size including optional 16-byte MVCC trailer (two little-endian int64).
+    /// </summary>
+    int GetRecordSize(TableDefinition table, bool includeMvcc);
+
+    /// <summary>
     /// Serializes a row to binary format.
     /// </summary>
     /// <param name="row">Row data.</param>
@@ -18,6 +23,7 @@ public interface IBinaryRowSerializer
     /// <param name="isActive">True for active row, false for deleted.</param>
     /// <param name="warnings">Optional list to collect truncation warnings.</param>
     /// <param name="tableName">Table name for warning messages.</param>
-    /// <returns>Serialized row bytes (exactly GetRecordSize(table) bytes).</returns>
-    byte[] Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null);
+    /// <param name="mvcc">Optional MVCC trailer; null = no trailer (legacy size).</param>
+    /// <returns>Serialized row bytes (exactly <see cref="GetRecordSize(TableDefinition, bool)"/> bytes).</returns>
+    byte[] Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null, MvccRowVersions? mvcc = null);
 }

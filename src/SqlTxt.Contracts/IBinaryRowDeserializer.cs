@@ -11,6 +11,11 @@ public interface IBinaryRowDeserializer
     int GetRecordSize(TableDefinition table);
 
     /// <summary>
+    /// Record size with optional 16-byte MVCC trailer.
+    /// </summary>
+    int GetRecordSize(TableDefinition table, bool includeMvcc);
+
+    /// <summary>
     /// Deserializes a binary record into a row.
     /// </summary>
     /// <param name="data">Raw record bytes.</param>

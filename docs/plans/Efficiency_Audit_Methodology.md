@@ -4,6 +4,8 @@
 
 A repeatable process for scanning existing SQL.txt code and planning efficiency improvements. Use this methodology before implementing new phases, when adding features, and after significant I/O changes.
 
+**Phase 3.5 gate:** Before starting Phase 4 query features that depend on fast INSERT or index paths, complete or explicitly defer items in [Phase3_5_Storage_Efficiency_Plan.md](Phase3_5_Storage_Efficiency_Plan.md) (true append, batched multi-row INSERT, sorted indexes). Run this audit on any new storage PR.
+
 ## Scan Targets
 
 Audit the following:

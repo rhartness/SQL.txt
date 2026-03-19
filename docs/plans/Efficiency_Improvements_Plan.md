@@ -4,6 +4,8 @@
 
 Address identified bottlenecks in the SQL.txt engine that cause slow multi-row INSERT and sharded table operations. Align implementation with documented efficiency principles in [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md) and [adr-008-index-shard-structure.md](../decisions/adr-008-index-shard-structure.md).
 
+**Master plan:** [Phase3_5_Storage_Efficiency_Plan.md](Phase3_5_Storage_Efficiency_Plan.md) (Phase 3.5). This document remains the detailed checklist for INSERT/STOC/index items; §4 is **in scope** for Phase 3.5.
+
 ## Reference
 
 - [10-performance-and-efficiency.md](../architecture/10-performance-and-efficiency.md)
@@ -61,19 +63,19 @@ Address identified bottlenecks in the SQL.txt engine that cause slow multi-row I
 
 ---
 
-### 4. Batch Index Appends (Deferred)
+### 4. Batch Index Appends (Phase 3.5)
 
-**Requirement:** Reduce index file I/O for multi-row INSERT.
+**Requirement:** Reduce index file I/O for multi-row INSERT via `AddIndexEntriesAsync` (and related batched validation). On-disk index files remain **sorted by key** after writes (see ADR-008).
 
-**Status:** Deferred — implement STOC fix and RowId batching first; measure improvement. Add if needed.
+**Status:** **Active** — tracked under [Phase3_5_Storage_Efficiency_Plan.md](Phase3_5_Storage_Efficiency_Plan.md).
 
 ---
 
-### 5. Index O(log n) Lookup (Future)
+### 5. Index O(log n) Lookup (Phase 3.5)
 
-**Requirement:** Phase 2 specifies sorted indexes for O(log n) binary search. Current `ContainsKeyAsync` does O(n) scan.
+**Requirement:** Sorted on-disk index lines with **binary search** for `LookupByValueAsync` / `ContainsKeyAsync` (ADR-008). Legacy unsorted files are normalized on read/write merge paths.
 
-**Status:** Deferred. Document in Phase 2 Efficiency Notes; implement when index format is finalized.
+**Status:** **Active** under Phase 3.5; see [Phase3_5_Storage_Efficiency_Plan.md](Phase3_5_Storage_Efficiency_Plan.md) M3.
 
 ---
 
@@ -87,9 +89,9 @@ Address identified bottlenecks in the SQL.txt engine that cause slow multi-row I
 
 ## Acceptance Criteria
 
-- [ ] STOC updated only on shard split and rebalance; not on every append to shards 1+
-- [ ] Multi-row INSERT uses batch RowId allocation (1 read/write for N rows)
-- [ ] Storage backend resolved once per database per session (cached)
-- [ ] Manual sharding test (500 rows) runs significantly faster (e.g., < 2s vs ~10s)
-- [ ] Manual sharding-varchar test passes with variable-width rows
-- [ ] All existing tests pass
+- [x] STOC updated only on shard split and rebalance; not on every append to shards 1+
+- [x] Multi-row INSERT uses batch RowId allocation (1 read/write for N rows)
+- [x] Storage backend resolved once per database per session (cached)
+- [x] Manual sharding test (500 rows) — typical ~300 ms after Phase 3.5 (environment-dependent)
+- [x] Manual sharding-varchar test passes with variable-width rows (incl. `StreamTransformRowsAsync` input snapshot fix)
+- [x] All existing tests pass

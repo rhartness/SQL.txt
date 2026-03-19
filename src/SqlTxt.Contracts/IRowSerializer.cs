@@ -13,6 +13,7 @@ public interface IRowSerializer
     /// <param name="isActive">True for active row (A|), false for deleted (D|).</param>
     /// <param name="warnings">Optional list to collect truncation warnings.</param>
     /// <param name="tableName">Table name for warning messages.</param>
+    /// <param name="mvcc">Optional MVCC tail (xmin/xmax); null = legacy row line.</param>
     /// <returns>Serialized row string.</returns>
-    string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null);
+    string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null, MvccRowVersions? mvcc = null);
 }

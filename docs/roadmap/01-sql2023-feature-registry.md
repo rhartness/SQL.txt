@@ -14,7 +14,7 @@ This document is the comprehensive reference for all SQL:2023 features from ISO/
 | Feature ID | Name | Phase | Status | Spec Reference |
 |------------|------|-------|--------|----------------|
 | Core | CREATE TABLE | 1 | Done | Clause 4 (Schema definition) |
-| Core | INSERT statement | 1 | Done | Clause 14 (Data manipulation) |
+| Core | INSERT statement | 1, 3.5 | Done | Clause 14 (Data manipulation). *Phase 3.5: batched execution path for multi-row `INSERT ... VALUES (...), (...)` (same syntax; engine/storage efficiency only—not SQL `BULK INSERT` from file).* |
 | Core | Query specification (SELECT) | 1 | Done | Clause 7 (Query) |
 | Core | UPDATE statement | 1 | Done | Clause 14 |
 | Core | DELETE statement | 1 | Done | Clause 14 |
@@ -41,6 +41,9 @@ This document is the comprehensive reference for all SQL:2023 features from ISO/
 | Impl | CREATE DATABASE | 0 | Done | Not in standard; engine-specific |
 | Impl | CREATE INDEX | 2 | Done | Standard does not mandate syntax |
 | Impl | CREATE STATISTICS | 7 | Planned | No direct SQL:2023 equivalent; adr-006 |
+| Impl | Table/schema locking + FK ordering | 2 | Done | Not a single feature ID; [adr-009](../decisions/adr-009-table-schema-locking.md); `IDatabaseLockManager` |
+| Impl | MVCC row versions + snapshot SELECT | 2–5 | Done (pre-release) | [adr-010](../decisions/adr-010-mvcc-row-versions.md); aligns with F113 snapshot-style reads at default isolation |
+| Impl | `VACUUM`/dead-tuple compaction API | 2–5 | Partial | `VacuumMvccRowsAsync`; on-disk reclaim policy in ADR-010 |
 | ID106 | Unique null treatment when unspecified | 2 | Planned | Implementation-defined |
 | IA201 | Rows with all NULLs: distinct or not | 2 | Planned | Implementation-defined |
 

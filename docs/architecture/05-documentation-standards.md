@@ -80,8 +80,9 @@ When adding or changing I/O paths, document:
 - **Memory behavior** — Streaming vs full load; O(1) vs O(n) memory
 - **Atomicity guarantees** — Temp file + rename; no partial writes
 - **Large-data considerations** — Sharding, streaming thresholds, when full load is acceptable
+- **Data structures** — Prefer layouts and in-memory structures optimized for read/write (sorted indexes, trees, batching); logical behavior remains relational. See [10-performance-and-efficiency.md](10-performance-and-efficiency.md) § Data structure strategy.
 
-See [10-performance-and-efficiency.md](10-performance-and-efficiency.md) for principles and recommended patterns. Use [Efficiency_Audit_Methodology.md](../plans/Efficiency_Audit_Methodology.md) when auditing existing code.
+See [10-performance-and-efficiency.md](10-performance-and-efficiency.md) for principles and recommended patterns. Use [Efficiency_Audit_Methodology.md](../plans/Efficiency_Audit_Methodology.md) when auditing existing code. Phase 3.5 work is tracked in [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md).
 
 ## Documentation Locations
 

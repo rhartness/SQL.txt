@@ -11,12 +11,14 @@ public sealed class BinaryRowDeserializer : IBinaryRowDeserializer
 {
     private const byte ActiveFlag = 0;
 
-    public int GetRecordSize(TableDefinition table)
+    public int GetRecordSize(TableDefinition table) => GetRecordSize(table, false);
+
+    public int GetRecordSize(TableDefinition table, bool includeMvcc)
     {
         var size = 1 + 8;
         foreach (var col in table.Columns)
             size += GetColumnByteSize(col);
-        return size;
+        return includeMvcc ? size + 16 : size;
     }
 
     private static int GetColumnByteSize(ColumnDefinition col)
@@ -55,6 +57,15 @@ public sealed class BinaryRowDeserializer : IBinaryRowDeserializer
             var str = ReadColumnValue(col, slice);
             values[col.Name] = str;
             offset += colSize;
+        }
+
+        var baseSize = GetRecordSize(table, false);
+        if (data.Length >= baseSize + 16)
+        {
+            var xmin = ReadInt64LittleEndian(data.Slice(baseSize, 8));
+            var xmax = ReadInt64LittleEndian(data.Slice(baseSize + 8, 8));
+            values[TableDefinition.MvccXminKey] = xmin.ToString();
+            values[TableDefinition.MvccXmaxKey] = xmax.ToString();
         }
 
         return new RowData(values);

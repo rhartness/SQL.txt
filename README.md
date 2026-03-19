@@ -16,10 +16,12 @@ SQL.txt is for people who like to learn by doing, who enjoy poking around their 
 - **Human-readable on-disk storage** — Inspect and debug data with any text editor (text backend)
 - **Lightweight local embedded usage** — No server, no external dependencies
 - **WASM-compatible storage** — `--wasm` mode for browser-style storage; single `.wasmdb` file persistence
+- **In-memory data management** — Index/metadata cache, optional file-level LRU cache, `--memory` load-into-RAM mode with optional `--persist`
 - **Cross-platform** — Windows, macOS, Linux
 - **Three build types** — CLI executable, NuGet API DLL, installable Service (Phase 2)
 - **Async API** — All DB functions via async methods; supports concurrent API calls
-- **Phase 2 relational** — Primary keys, foreign keys, UNIQUE, indexes, sharding, reader-writer locks, rebalance
+- **Phase 2 relational** — Primary keys, foreign keys, UNIQUE, indexes, sharding, per-table/schema locks (ADR-009), rebalance
+- **MVCC (pre-release)** — Row `xmin`/`xmax`, snapshot `SELECT`, `VacuumMvccRowsAsync`; see ADR-010 and [08-concurrency-and-locking](docs/architecture/08-concurrency-and-locking.md)
 - **Phase 3 variable-width** — VARCHAR(n), length-prefixed row format, per-table format version
 - **Structured progression** — Phased implementation from simple to relational engine
 - **.NET 8** — Modern C# with async/await support
@@ -27,7 +29,7 @@ SQL.txt is for people who like to learn by doing, who enjoy poking around their 
 ## Project Structure
 
 ```
-SqlTxt.sln
+SqlTxt.slnx
 src/
   SqlTxt.Contracts/   # Shared models and interfaces
   SqlTxt.Core/        # Domain primitives and utilities
@@ -51,6 +53,17 @@ docs/
 dotnet build
 dotnet test
 ```
+
+### Manual tests (concurrency / sharding)
+
+From the repo root, defaults use **`manual-test-artifacts/`** (gitignored except `README.md`):
+
+```bash
+dotnet run --project src/SqlTxt.ManualTests -- concurrency
+dotnet run --project src/SqlTxt.ManualTests -- all --storage all
+```
+
+Omitting `--db` uses `manual-test-artifacts/run-<timestamp>/`. Omitting `--log` writes to `manual-test-artifacts/logs/`. By default, run artifacts are **deleted** after completion; add **`--save-db`** to keep databases. Override with e.g. `--db C:\temp\MyDb` when needed.
 
 ## Deployment
 
@@ -88,7 +101,9 @@ SQL.txt is built in phases toward **100% SQL:2023 compliance per phase**: start 
 | **Phase 2** | Done | Indexes, PK/FK, constraints, relational metadata |
 | **Storage Abstraction** | Done | `--storage:text` \| `--storage:binary` at database creation |
 | **Phase 3** | Done | VARCHAR, variable-width fields, storage evolution; SQL:2023 T055/T056/T062/T081 |
-| **Phase 4** | Next | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 |
+| **In-Memory Data Management** | Done | Index/metadata cache, CachingFileSystemAccessor (LRU), load-into-memory mode (`--memory` / `--persist`) |
+| **Phase 3.5** | Next | Storage & ingest efficiency: true append I/O, batched multi-row INSERT (validation + index writes), sorted on-disk indexes per ADR-008; physical layout may use non-linear structures for speed |
+| **Phase 4** | After 3.5 | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 |
 | **CTE Phase** | Planned | WITH clause, recursive CTE; SQL:2023 |
 | **Phase 5** | Planned | ALTER TABLE, transactions; SQL:2023 |
 | **Phase 6** | Planned | Views, stored procedures, functions; SQL:2023 |

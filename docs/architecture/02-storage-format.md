@@ -53,18 +53,20 @@ Contains all properties specific to the database itself. It describes the databa
   "numberFormat": "standard",
   "textEncoding": "ascii",
   "defaultMaxShardSize": 20971520,
-  "storageBackend": "text"
+  "storageBackend": "text",
+  "mvcc": true
 }
 ```
 
 - **storageBackend** — Optional; `"text"` (human-readable) or `"binary"` (compact, performance). Default: `"text"`. Chosen at database creation; cannot be changed. Text uses `.txt` files; binary uses `.bin` for data files.
+- **mvcc** — Optional; when `true` (default for new databases), row records include **MVCC** metadata (`xmin` / `xmax` transaction ids) and `SELECT` uses a **committed snapshot** watermark. See [adr-010-mvcc-row-versions.md](../decisions/adr-010-mvcc-row-versions.md) and [08-concurrency-and-locking.md](08-concurrency-and-locking.md). Pre-release: legacy rows without MVCC tails are accepted with implied `xmin = 1`, `xmax = 0`.
 
 ### Binary Data Format (storageBackend=binary)
 
 When `storageBackend=binary`, table data files use extension `.bin` and a fixed-length record format:
 
 - **Streaming:** Binary reads use `OpenReadStreamAsync` with chunked `ReadAsync` (64 KB buffer, ArrayPool); writes use `OpenWriteStreamAsync` for streaming without full-file materialization.
-- **Record layout:** 1 byte flag (0=active, 1=deleted) + 8 bytes RowId (little-endian) + fixed-width column values per schema
+- **Record layout:** 1 byte flag (0=active, 1=deleted) + 8 bytes RowId (little-endian) + fixed-width column values per schema. When MVCC is enabled, records append **8-byte `xmin`** + **8-byte `xmax`** (little-endian `Int64`; `xmax = 0` means the version is still current).
 - **Column bytes:** CHAR(n)=n, VARCHAR(n)=n, INT=4, TINYINT=1, BIGINT=8, BIT=1, DECIMAL=8
 - **numberFormat** — Optional; default `"standard"` (decimal `.`). Override for locale-specific numeric formatting.
 - **textEncoding** — Optional; UTF-8 supported for text backend. Fixed-width encodings (ASCII, Latin-1, UTF-16, UTF-32) also supported. Default: UTF-8 or platform default. UTF-8 is variable-length; line-delimited format still enables line-by-line streaming. See [06-durability-and-sharding.md](06-durability-and-sharding.md).
@@ -86,6 +88,8 @@ One folder per table. Each table folder contains:
 | `<TableName>_PK.txt` | Primary key index (Phase 2+); format: `Value\|ShardId\|_RowId` |
 | `<TableName>_FK_<LinkedTable>.txt` | Foreign key index for FK to LinkedTable (Phase 2+) |
 | `<TableName>_INX_<Col1>_<Col2>_<N>.txt` | Index on columns; N = increment if multiple indexes share same columns (Phase 2+); format: `Value\|ShardId\|_RowId` |
+
+**Phase 3.5 — layout efficiency:** Index `.txt` files are stored with **lines sorted** by key (see [adr-008](../decisions/adr-008-index-shard-structure.md)) so lookups can use binary search. Row data files remain append-oriented per shard; physical row order does not need to match logical insert order if a future format uses alternative segment or tree layouts—`storageFormatVersion` / `FORMAT_VERSION` govern compatibility. See [Phase3_5_Storage_Efficiency_Plan.md](../plans/Phase3_5_Storage_Efficiency_Plan.md).
 
 ### Schema and Metadata
 
@@ -115,6 +119,13 @@ A|1|1:1|5:Hello|17:This is body text
 - Each field: `length:value` (e.g., `5:Hello` = 5 chars, value "Hello")
 - Values may contain `|` and `:`; length defines exact character count
 - CHAR and VARCHAR columns stored without padding
+- **MVCC (text):** After the user columns, two pipe-separated **fixed-width decimal** fields (same width for all rows in a table) hold `xmin` and `xmax`, e.g. `...|00000000000000000042|00000000000000000000`. See [adr-010-mvcc-row-versions.md](../decisions/adr-010-mvcc-row-versions.md).
+
+### MVCC and vacuum hints
+
+- **xmin** — Xid that created this physical version.
+- **xmax** — Xid that superseded or deleted it; `0` if still the live version for that row id chain.
+- **Vacuum / compaction:** Obsolete versions may be stripped during shard rewrite when safe (dead tuple rule in ADR-010). Internal column keys (e.g. `_VacuumOmit`) may mark tuples dropped from rewritten output.
 
 ## ~System/ Folder
 
@@ -125,6 +136,8 @@ Same structure as `Tables/` but for system tables. Stores meta-information about
 - Indexes, keys, constraints
 
 This is a mini-database that the engine can load in-memory to know how and where information is stored.
+
+**MVCC state:** Transaction id allocation and committed watermark may be persisted under `~System` (e.g. `mvcc/xid.state`). See [adr-010-mvcc-row-versions.md](../decisions/adr-010-mvcc-row-versions.md).
 
 ## Views/ Folder
 
@@ -143,6 +156,17 @@ Database-level **defaultMaxShardSize** (20 MB default) in manifest; per-table ov
 - `FORMAT_VERSION` in schema enables future format evolution
 - `storageFormatVersion` in manifest for cross-database compatibility
 - Phase 1: fixed-width only; Phase 3+: variable-width (length-prefixed) is primary for tables with VARCHAR; fixed-width remains for legacy compatibility
+
+## File-Level Caching (Optional)
+
+The engine can use **CachingFileSystemAccessor** to wrap the real filesystem and cache file contents with an LRU eviction policy. When enabled:
+
+- **Cache key:** Normalized file path
+- **Eviction:** LRU by total bytes; configurable `maxCachedBytes` (default 64 MB)
+- **Write path:** Write-through — write to disk, then update or invalidate cache
+- **Benefit:** Keeps hot shards and indexes in memory; transparent to callers
+
+Cache is opt-in via `DatabaseEngine(useFileSystemCache: true, maxCachedBytes: 67_108_864)`. Streaming for large files is preserved when cache is disabled or evicted. See [10-performance-and-efficiency.md](10-performance-and-efficiency.md).
 
 ## File Naming
 

@@ -8,7 +8,7 @@ namespace SqlTxt.Storage;
 /// </summary>
 public sealed class FixedWidthRowSerializer : IRowSerializer
 {
-    public string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null)
+    public string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null, MvccRowVersions? mvcc = null)
     {
         var prefix = isActive ? "A|" : "D|";
         var parts = new List<string>();
@@ -31,7 +31,10 @@ public sealed class FixedWidthRowSerializer : IRowSerializer
             parts.Add(padded);
         }
 
-        return prefix + string.Join("|", parts);
+        var line = prefix + string.Join("|", parts);
+        if (mvcc is { } v)
+            line += "|" + v.Xmin.ToString().PadLeft(TableDefinition.MvccTextFieldWidth, '0') + "|" + v.Xmax.ToString().PadLeft(TableDefinition.MvccTextFieldWidth, '0');
+        return line;
     }
 
     private static string PadValue(string value, ColumnDefinition col, int width, List<string>? warnings, string tableName)

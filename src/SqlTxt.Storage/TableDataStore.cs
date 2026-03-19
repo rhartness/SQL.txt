@@ -1,6 +1,7 @@
 using System.Text;
 using SqlTxt.Contracts;
 using SqlTxt.Contracts.Exceptions;
+using SqlTxt.Core;
 
 namespace SqlTxt.Storage;
 
@@ -44,7 +45,7 @@ public sealed class TableDataStore : ITableDataStore
         _backendResolver = backendResolver;
     }
 
-    public async Task<(int ShardIndex, long RowId)> AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null)
+    public async Task<(int ShardIndex, long RowId)> AppendRowAsync(string databasePath, string tableName, RowData row, CancellationToken cancellationToken = default, List<string>? warnings = null, MvccRowVersions? mvcc = null)
     {
         var table = await _schemaStore.ReadSchemaAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{tableName}' not found");
@@ -75,11 +76,11 @@ public sealed class TableDataStore : ITableDataStore
         int newRowBytes;
         if (useBinary)
         {
-            newRowBytes = _binarySerializer.GetRecordSize(table);
+            newRowBytes = _binarySerializer.GetRecordSize(table, mvcc != null);
         }
         else
         {
-            var line = _serializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName) + Environment.NewLine;
+            var line = _serializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName, mvcc) + Environment.NewLine;
             newRowBytes = line.Length;
         }
 
@@ -98,16 +99,158 @@ public sealed class TableDataStore : ITableDataStore
         _fs.CreateDirectory(Path.GetDirectoryName(dataPath)!);
         if (useBinary)
         {
-            var bytes = _binarySerializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName);
+            var bytes = _binarySerializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName, mvcc);
             await _fs.AppendAllBytesAsync(dataPath, bytes, cancellationToken).ConfigureAwait(false);
         }
         else
         {
-            var line = _serializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName) + Environment.NewLine;
+            var line = _serializer.Serialize(rowToSerialize, table, isActive: true, warnings, tableName, mvcc) + Environment.NewLine;
             await _fs.AppendAllTextAsync(dataPath, line, cancellationToken).ConfigureAwait(false);
         }
 
         return (shardIndex, rowId);
+    }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<(int ShardIndex, long RowId)>> AppendRowsAsync(string databasePath, string tableName, IReadOnlyList<RowData> rows, CancellationToken cancellationToken = default, List<string>? warnings = null, MvccRowVersions? mvcc = null)
+    {
+        if (rows.Count == 0)
+            return [];
+
+        var table = await _schemaStore.ReadSchemaAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false)
+            ?? throw new SchemaException($"Table '{tableName}' not found");
+
+        var backend = _backendResolver != null
+            ? await _backendResolver.ResolveAsync(databasePath, cancellationToken).ConfigureAwait(false)
+            : null;
+        var useBinary = backend is { IsTextBackend: false };
+        var ext = backend?.DataFileExtension ?? ".txt";
+        var usesRowId = table.PrimaryKey.Count > 0 || table.ForeignKeys.Count > 0 || table.UniqueColumns.Count > 0;
+
+        var results = new List<(int ShardIndex, long RowId)>(rows.Count);
+        var pendingShard = -1;
+        long pendingByteCount = 0;
+        StringBuilder? textBuf = null;
+        MemoryStream? binBuf = null;
+
+        async Task FlushPendingAsync()
+        {
+            if (pendingShard < 0)
+                return;
+            var dataPath = GetDataFilePath(databasePath, tableName, pendingShard, ext);
+            _fs.CreateDirectory(Path.GetDirectoryName(dataPath)!);
+            if (useBinary)
+            {
+                await _fs.AppendAllBytesAsync(dataPath, binBuf!.ToArray(), cancellationToken).ConfigureAwait(false);
+                binBuf.Dispose();
+                binBuf = null;
+            }
+            else
+            {
+                await _fs.AppendAllTextAsync(dataPath, textBuf!.ToString(), cancellationToken).ConfigureAwait(false);
+                textBuf = null;
+            }
+            pendingShard = -1;
+            pendingByteCount = 0;
+        }
+
+        foreach (var row in rows)
+        {
+            if (usesRowId)
+            {
+                var rowIdStr = row.GetValue(TableDefinition.RowIdColumnName);
+                if (string.IsNullOrEmpty(rowIdStr))
+                    throw new SchemaException($"Batch append requires {TableDefinition.RowIdColumnName} on each row.");
+            }
+
+            long rowId;
+            if (usesRowId)
+            {
+                var rowIdStr = row.GetValue(TableDefinition.RowIdColumnName);
+                rowId = long.TryParse(rowIdStr, out var rid) ? rid : 0;
+            }
+            else
+                rowId = 0;
+
+            int newRowBytes;
+            byte[]? binChunk = null;
+            string? textChunk = null;
+            if (useBinary)
+            {
+                newRowBytes = _binarySerializer.GetRecordSize(table, mvcc != null);
+                binChunk = _binarySerializer.Serialize(row, table, isActive: true, warnings, tableName, mvcc);
+            }
+            else
+            {
+                textChunk = _serializer.Serialize(row, table, isActive: true, warnings, tableName, mvcc) + Environment.NewLine;
+                newRowBytes = Encoding.UTF8.GetByteCount(textChunk);
+            }
+
+            if (table.MaxShardSize is > 0)
+            {
+                var path0 = GetDataFilePath(databasePath, tableName, 0, ext);
+                var path1 = GetDataFilePath(databasePath, tableName, 1, ext);
+                var eff0 = (_fs.FileExists(path0) ? _fs.GetFileLength(path0) : 0) + (pendingShard == 0 ? pendingByteCount : 0);
+                if (_fs.FileExists(path0) && !_fs.FileExists(path1) && eff0 + newRowBytes > table.MaxShardSize.Value)
+                {
+                    await FlushPendingAsync().ConfigureAwait(false);
+                    await SplitShardAsync(databasePath, tableName, table, 0, ext, useBinary, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            var shardIndex = GetAppendShardIndexWithPending(databasePath, tableName, table.MaxShardSize, newRowBytes, ext, pendingShard, pendingByteCount);
+
+            if (pendingShard >= 0 && pendingShard != shardIndex)
+                await FlushPendingAsync().ConfigureAwait(false);
+
+            if (pendingShard < 0)
+            {
+                pendingShard = shardIndex;
+                if (useBinary)
+                    binBuf = new MemoryStream();
+                else
+                    textBuf = new StringBuilder();
+            }
+
+            if (useBinary)
+            {
+                binBuf!.Write(binChunk!);
+                pendingByteCount += newRowBytes;
+            }
+            else
+            {
+                textBuf!.Append(textChunk);
+                pendingByteCount += newRowBytes;
+            }
+
+            results.Add((shardIndex, rowId));
+        }
+
+        await FlushPendingAsync().ConfigureAwait(false);
+        return results;
+    }
+
+    private int GetAppendShardIndexWithPending(string databasePath, string tableName, long? maxShardSize, int newRowBytes, string ext, int pendingTargetShard, long pendingByteCount)
+    {
+        if (maxShardSize is null or <= 0)
+            return 0;
+
+        var shardIndex = 0;
+        while (true)
+        {
+            var path = GetDataFilePath(databasePath, tableName, shardIndex, ext);
+            if (!_fs.FileExists(path))
+                return shardIndex;
+
+            var currentSize = _fs.GetFileLength(path);
+            if (shardIndex == pendingTargetShard)
+                currentSize += pendingByteCount;
+
+            if (currentSize + newRowBytes <= maxShardSize.Value)
+                return shardIndex;
+
+            shardIndex++;
+        }
     }
 
     private async Task SplitShardAsync(string databasePath, string tableName, TableDefinition table, int shardToSplit, string ext = ".txt", bool useBinary = false, CancellationToken cancellationToken = default)
@@ -119,7 +262,8 @@ public sealed class TableDataStore : ITableDataStore
         var rows = new List<(bool IsActive, RowData Row, string? Serialized, byte[]? SerializedBytes)>();
         if (useBinary)
         {
-            var recordSize = _binaryDeserializer.GetRecordSize(table);
+            var fileLen0 = _fs.GetFileLength(dataPath);
+            var recordSize = DetectBinaryRecordSize(fileLen0, table);
             var rowCount = 0;
             await using (var countStream = await _fs.OpenReadStreamAsync(dataPath, cancellationToken).ConfigureAwait(false))
             {
@@ -144,7 +288,8 @@ public sealed class TableDataStore : ITableDataStore
             await foreach (var record in BinaryRecordStreamHelper.ReadRecordsAsync(readStream, recordSize, cancellationToken).ConfigureAwait(false))
             {
                 var row = _binaryDeserializer.Deserialize(record.Span, table, out var isActive);
-                var serializedBytes = _binarySerializer.Serialize(row, table, isActive, null, tableName);
+                var mvcc = RowMvccHelper.ToMvccVersions(row);
+                var serializedBytes = _binarySerializer.Serialize(row, table, isActive, null, tableName, mvcc);
 
                 if (rowIndex < half)
                     await writeStream0.WriteAsync(serializedBytes, cancellationToken).ConfigureAwait(false);
@@ -171,7 +316,7 @@ public sealed class TableDataStore : ITableDataStore
             if (string.IsNullOrWhiteSpace(line))
                 continue;
             var row = _deserializer.Deserialize(line, table, out var isActive);
-            var serialized = _serializer.Serialize(row, table, isActive, null, tableName);
+            var serialized = _serializer.Serialize(row, table, isActive, null, tableName, RowMvccHelper.ToMvccVersions(row));
             rows.Add((isActive, row, serialized, null));
         }
 
@@ -314,7 +459,6 @@ public sealed class TableDataStore : ITableDataStore
         var entries = new List<StocEntry>();
         var shardIndex = 0;
         var useBinary = ext == ".bin";
-        var recordSize = useBinary ? _binaryDeserializer.GetRecordSize(table) : 0;
 
         while (true)
         {
@@ -328,6 +472,8 @@ public sealed class TableDataStore : ITableDataStore
 
             if (useBinary)
             {
+                var fileLen = _fs.GetFileLength(dataPath);
+                var recordSize = DetectBinaryRecordSize(fileLen, table);
                 await using var stream = await _fs.OpenReadStreamAsync(dataPath, cancellationToken).ConfigureAwait(false);
                 await foreach (var record in BinaryRecordStreamHelper.ReadRecordsAsync(stream, recordSize, cancellationToken).ConfigureAwait(false))
                 {
@@ -371,7 +517,7 @@ public sealed class TableDataStore : ITableDataStore
             await _stocStore.WriteStocAsync(databasePath, tableName, entries, cancellationToken).ConfigureAwait(false);
     }
 
-    public async IAsyncEnumerable<RowData> ReadRowsAsync(string databasePath, string tableName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<RowData> ReadRowsAsync(string databasePath, string tableName, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default, long? mvccSnapshotCommitted = null)
     {
         var table = await _schemaStore.ReadSchemaAsync(databasePath, tableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{tableName}' not found");
@@ -401,8 +547,12 @@ public sealed class TableDataStore : ITableDataStore
         if (shardPaths.Count == 0)
             yield break;
 
+        var mvccEnabled = await MvccManifest.ReadMvccEnabledAsync(_fs, databasePath, cancellationToken).ConfigureAwait(false);
+        var mvccFilter = mvccEnabled && mvccSnapshotCommitted.HasValue;
+        var snapshot = mvccSnapshotCommitted ?? 0L;
+
         var useBinary = ext == ".bin";
-        var shardTasks = shardPaths.Select(path => ReadShardRowsAsync(path, table, useBinary, cancellationToken)).ToList();
+        var shardTasks = shardPaths.Select(path => ReadShardRowsAsync(path, table, useBinary, mvccFilter, snapshot, cancellationToken)).ToList();
         var shardResults = await Task.WhenAll(shardTasks).ConfigureAwait(false);
 
         foreach (var rows in shardResults)
@@ -414,7 +564,7 @@ public sealed class TableDataStore : ITableDataStore
         }
     }
 
-    public async IAsyncEnumerable<RowData> ReadRowsByRowIdsAsync(string databasePath, string tableName, IReadOnlySet<long> rowIds, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<RowData> ReadRowsByRowIdsAsync(string databasePath, string tableName, IReadOnlySet<long> rowIds, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default, long? mvccSnapshotCommitted = null)
     {
         if (rowIds.Count == 0)
             yield break;
@@ -460,6 +610,10 @@ public sealed class TableDataStore : ITableDataStore
         if (shardIndicesToStream.Count == 0)
             yield break;
 
+        var mvccEnabled = await MvccManifest.ReadMvccEnabledAsync(_fs, databasePath, cancellationToken).ConfigureAwait(false);
+        var mvccFilter = mvccEnabled && mvccSnapshotCommitted.HasValue;
+        var snapshot = mvccSnapshotCommitted ?? 0L;
+
         var useBinary = ext == ".bin";
         var foundCount = 0;
         var targetCount = rowIds.Count;
@@ -473,7 +627,7 @@ public sealed class TableDataStore : ITableDataStore
             if (!_fs.FileExists(dataPath))
                 continue;
 
-            await foreach (var row in ReadShardRowsByRowIdsAsync(dataPath, table, useBinary, rowIds, cancellationToken).ConfigureAwait(false))
+            await foreach (var row in ReadShardRowsByRowIdsAsync(dataPath, table, useBinary, rowIds, mvccFilter, snapshot, cancellationToken).ConfigureAwait(false))
             {
                 yield return row;
                 foundCount++;
@@ -483,11 +637,12 @@ public sealed class TableDataStore : ITableDataStore
         }
     }
 
-    private async IAsyncEnumerable<RowData> ReadShardRowsByRowIdsAsync(string dataPath, TableDefinition table, bool useBinary, IReadOnlySet<long> rowIds, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    private async IAsyncEnumerable<RowData> ReadShardRowsByRowIdsAsync(string dataPath, TableDefinition table, bool useBinary, IReadOnlySet<long> rowIds, bool mvccFilter, long snapshotCommitted, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         if (useBinary)
         {
-            var recordSize = _binaryDeserializer.GetRecordSize(table);
+            var fileLen = _fs.GetFileLength(dataPath);
+            var recordSize = DetectBinaryRecordSize(fileLen, table);
             await using var stream = await _fs.OpenReadStreamAsync(dataPath, cancellationToken).ConfigureAwait(false);
             await foreach (var record in BinaryRecordStreamHelper.ReadRecordsAsync(stream, recordSize, cancellationToken).ConfigureAwait(false))
             {
@@ -495,8 +650,15 @@ public sealed class TableDataStore : ITableDataStore
                 if (!isActive)
                     continue;
                 var rowIdStr = row.GetValue(TableDefinition.RowIdColumnName);
-                if (!string.IsNullOrEmpty(rowIdStr) && long.TryParse(rowIdStr, out var rid) && rowIds.Contains(rid))
-                    yield return row;
+                if (string.IsNullOrEmpty(rowIdStr) || !long.TryParse(rowIdStr, out var rid) || !rowIds.Contains(rid))
+                    continue;
+                if (mvccFilter)
+                {
+                    var (xmin, xmax) = RowMvccHelper.GetXminXmax(row);
+                    if (!MvccVisibility.IsVisibleAtSnapshot(xmin, xmax, snapshotCommitted))
+                        continue;
+                }
+                yield return row;
             }
         }
         else
@@ -509,20 +671,45 @@ public sealed class TableDataStore : ITableDataStore
                 if (!isActive)
                     continue;
                 var rowIdStr = row.GetValue(TableDefinition.RowIdColumnName);
-                if (!string.IsNullOrEmpty(rowIdStr) && long.TryParse(rowIdStr, out var rid) && rowIds.Contains(rid))
-                    yield return row;
+                if (string.IsNullOrEmpty(rowIdStr) || !long.TryParse(rowIdStr, out var rid) || !rowIds.Contains(rid))
+                    continue;
+                if (mvccFilter)
+                {
+                    var (xmin, xmax) = RowMvccHelper.GetXminXmax(row);
+                    if (!MvccVisibility.IsVisibleAtSnapshot(xmin, xmax, snapshotCommitted))
+                        continue;
+                }
+                yield return row;
             }
         }
     }
 
-    private async Task<List<RowData>> ReadShardRowsAsync(string dataPath, TableDefinition table, bool useBinary, CancellationToken cancellationToken)
+    private int DetectBinaryRecordSize(long fileLength, TableDefinition table)
+    {
+        var b = _binaryDeserializer.GetRecordSize(table, false);
+        var m = _binaryDeserializer.GetRecordSize(table, true);
+        if (fileLength <= 0)
+            return b;
+        var divM = fileLength % m == 0;
+        var divB = fileLength % b == 0;
+        if (divM && !divB)
+            return m;
+        if (divB && !divM)
+            return b;
+        if (divM && divB)
+            return m > b ? m : b;
+        return b;
+    }
+
+    private async Task<List<RowData>> ReadShardRowsAsync(string dataPath, TableDefinition table, bool useBinary, bool mvccFilter, long snapshotCommitted, CancellationToken cancellationToken)
     {
         var result = new List<RowData>();
         var rowNum = 0;
 
         if (useBinary)
         {
-            var recordSize = _binaryDeserializer.GetRecordSize(table);
+            var fileLen = _fs.GetFileLength(dataPath);
+            var recordSize = DetectBinaryRecordSize(fileLen, table);
             await using var stream = await _fs.OpenReadStreamAsync(dataPath, cancellationToken).ConfigureAwait(false);
             await foreach (var record in BinaryRecordStreamHelper.ReadRecordsAsync(stream, recordSize, cancellationToken).ConfigureAwait(false))
             {
@@ -531,7 +718,15 @@ public sealed class TableDataStore : ITableDataStore
                 {
                     var row = _binaryDeserializer.Deserialize(record.Span, table, out var isActive);
                     if (isActive)
+                    {
+                        if (mvccFilter)
+                        {
+                            var (xmin, xmax) = RowMvccHelper.GetXminXmax(row);
+                            if (!MvccVisibility.IsVisibleAtSnapshot(xmin, xmax, snapshotCommitted))
+                                continue;
+                        }
                         result.Add(row);
+                    }
                 }
                 catch (StorageException ex)
                 {
@@ -559,7 +754,15 @@ public sealed class TableDataStore : ITableDataStore
                 }
 
                 if (isActive)
+                {
+                    if (mvccFilter)
+                    {
+                        var (xmin, xmax) = RowMvccHelper.GetXminXmax(row);
+                        if (!MvccVisibility.IsVisibleAtSnapshot(xmin, xmax, snapshotCommitted))
+                            continue;
+                    }
                     result.Add(row);
+                }
             }
         }
         return result;
@@ -583,7 +786,6 @@ public sealed class TableDataStore : ITableDataStore
             return result;
 
         var useBinary = ext == ".bin";
-        var recordSize = useBinary ? _binaryDeserializer.GetRecordSize(table) : 0;
         var shardIndex = 0;
 
         while (true)
@@ -595,6 +797,8 @@ public sealed class TableDataStore : ITableDataStore
             var rowNum = 0;
             if (useBinary)
             {
+                var fileLen = _fs.GetFileLength(dataPath);
+                var recordSize = DetectBinaryRecordSize(fileLen, table);
                 await using var stream = await _fs.OpenReadStreamAsync(dataPath, cancellationToken).ConfigureAwait(false);
                 await foreach (var record in BinaryRecordStreamHelper.ReadRecordsAsync(stream, recordSize, cancellationToken).ConfigureAwait(false))
                 {
@@ -652,7 +856,6 @@ public sealed class TableDataStore : ITableDataStore
         _fs.CreateDirectory(tableDir);
 
         var useBinary = ext == ".bin";
-        var recordSize = useBinary ? _binarySerializer.GetRecordSize(table) : 0;
         var newline = Environment.NewLine;
 
         var maxShardSize = table.MaxShardSize;
@@ -666,7 +869,7 @@ public sealed class TableDataStore : ITableDataStore
         {
             foreach (var r in rows)
             {
-                var bytes = _binarySerializer.Serialize(r.Row, table, r.IsActive, warnings, tableName);
+                var bytes = _binarySerializer.Serialize(r.Row, table, r.IsActive, warnings, tableName, RowMvccHelper.ToMvccVersions(r.Row));
                 if (maxShardSize is > 0 && currentShardBytes.Count > 0 && currentSize + bytes.Length > maxShardSize.Value)
                 {
                     shardBytes.Add(currentShardBytes);
@@ -681,7 +884,7 @@ public sealed class TableDataStore : ITableDataStore
         }
         else
         {
-            var lines = rows.Select(r => _serializer.Serialize(r.Row, table, r.IsActive, warnings, tableName)).ToList();
+            var lines = rows.Select(r => _serializer.Serialize(r.Row, table, r.IsActive, warnings, tableName, RowMvccHelper.ToMvccVersions(r.Row))).ToList();
             foreach (var line in lines)
             {
                 var lineBytes = line.Length + newline.Length;
@@ -754,7 +957,6 @@ public sealed class TableDataStore : ITableDataStore
         }
 
         var useBinary = ext == ".bin";
-        var recordSize = useBinary ? _binaryDeserializer.GetRecordSize(table) : 0;
         var tableDir = Path.GetDirectoryName(GetDataFilePath(databasePath, tableName, 0, ext))!;
         _fs.CreateDirectory(tableDir);
 
@@ -807,25 +1009,39 @@ public sealed class TableDataStore : ITableDataStore
             outputShardIndex++;
         }
 
-        var shardIndex = 0;
-        while (true)
+        // Snapshot input shard paths first. Writing output creates Notes_1, Notes_2, …; a live directory scan would treat those as extra inputs and never finish.
+        var inputShardPaths = new List<string>();
+        for (var si = 0; ; si++)
         {
-            var dataPath = GetDataFilePath(databasePath, tableName, shardIndex, ext);
-            if (!_fs.FileExists(dataPath))
+            var scanPath = GetDataFilePath(databasePath, tableName, si, ext);
+            if (!_fs.FileExists(scanPath))
                 break;
+            inputShardPaths.Add(scanPath);
+        }
 
+        foreach (var dataPath in inputShardPaths)
+        {
             var rowNum = 0;
             if (useBinary)
             {
-                await using var readStream = await _fs.OpenReadStreamAsync(dataPath, cancellationToken).ConfigureAwait(false);
-                await foreach (var record in BinaryRecordStreamHelper.ReadRecordsAsync(readStream, recordSize, cancellationToken).ConfigureAwait(false))
+                // Buffer input shard fully before writing output — flush may replace the same path we read from (shard 0).
+                var recordList = new List<byte[]>();
+                var fileLen = _fs.GetFileLength(dataPath);
+                var shardRecordSize = DetectBinaryRecordSize(fileLen, table);
+                await using (var readStream = await _fs.OpenReadStreamAsync(dataPath, cancellationToken).ConfigureAwait(false))
+                {
+                    await foreach (var record in BinaryRecordStreamHelper.ReadRecordsAsync(readStream, shardRecordSize, cancellationToken).ConfigureAwait(false))
+                        recordList.Add(record.ToArray());
+                }
+
+                foreach (var recordBytes in recordList)
                 {
                     rowNum++;
                     RowData row;
                     bool isActive;
                     try
                     {
-                        row = _binaryDeserializer.Deserialize(record.Span, table, out isActive);
+                        row = _binaryDeserializer.Deserialize(recordBytes.AsSpan(), table, out isActive);
                     }
                     catch (StorageException ex)
                     {
@@ -833,11 +1049,14 @@ public sealed class TableDataStore : ITableDataStore
                     }
 
                     var transformed = transform((isActive, row));
+                    if (string.Equals(transformed.Row.GetValue(TableDefinition.VacuumOmitKey), "1", StringComparison.Ordinal))
+                        continue;
                     total++;
                     if (transformed.IsActive)
                         active++;
 
-                    var serializedBytes = _binarySerializer.Serialize(transformed.Row, table, transformed.IsActive, warnings, tableName);
+                    var mvccOut = RowMvccHelper.ToMvccVersions(transformed.Row);
+                    var serializedBytes = _binarySerializer.Serialize(transformed.Row, table, transformed.IsActive, warnings, tableName, mvccOut);
                     if (maxShardSize is > 0 && currentBinaryWriteStream != null && currentBinaryShardSize > 0 && currentBinaryShardSize + serializedBytes.Length > maxShardSize.Value)
                         await FlushBinaryShardAsync().ConfigureAwait(false);
 
@@ -848,7 +1067,11 @@ public sealed class TableDataStore : ITableDataStore
             }
             else
             {
-                await foreach (var line in _fs.ReadLinesAsync(dataPath, cancellationToken).ConfigureAwait(false))
+                // Buffer full shard text in one read — avoids long-running / stuck async enumeration on some IFileSystemAccessor stacks during rebalance.
+                var raw = await _fs.ReadAllTextAsync(dataPath, cancellationToken).ConfigureAwait(false);
+                var lineList = raw.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
+
+                foreach (var line in lineList)
                 {
                     rowNum++;
                     if (string.IsNullOrWhiteSpace(line))
@@ -866,11 +1089,13 @@ public sealed class TableDataStore : ITableDataStore
                     }
 
                     var transformed = transform((isActive, row));
+                    if (string.Equals(transformed.Row.GetValue(TableDefinition.VacuumOmitKey), "1", StringComparison.Ordinal))
+                        continue;
                     total++;
                     if (transformed.IsActive)
                         active++;
 
-                    var serialized = _serializer.Serialize(transformed.Row, table, transformed.IsActive, warnings, tableName);
+                    var serialized = _serializer.Serialize(transformed.Row, table, transformed.IsActive, warnings, tableName, RowMvccHelper.ToMvccVersions(transformed.Row));
                     var lineBytes = serialized.Length + newline.Length;
 
                     if (maxShardSize is > 0 && currentShardLines.Count > 0 && currentShardSize + lineBytes > maxShardSize.Value)
@@ -880,8 +1105,6 @@ public sealed class TableDataStore : ITableDataStore
                     currentShardSize += lineBytes;
                 }
             }
-
-            shardIndex++;
         }
 
         if (useBinary)

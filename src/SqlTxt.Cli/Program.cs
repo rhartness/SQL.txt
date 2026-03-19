@@ -71,6 +71,8 @@ static void PrintUsage()
 
         Options:
           --wasm  Use WASM-compatible in-memory storage (persisted to .wasmdb file)
+          --memory  Load filesystem DB into memory; operate in RAM (use with --persist to flush on exit)
+          --persist  With --memory: save changes back to disk when done
           --storage:text   Human-readable files (default)
           --storage:binary Compact binary files for performance
 
@@ -84,7 +86,7 @@ static void PrintUsage()
 
 static async Task<int> BuildSampleWikiAsync(List<string> args)
 {
-    var (dbPath, useWasm, _) = ExtractDbPathAndWasm(args);
+    var (dbPath, useWasm, _, _, _) = ExtractDbPathAndOptions(args);
     var path = dbPath ?? Path.GetFullPath(".");
     (IDatabaseEngine engine, string enginePath) = useWasm
         ? CreateEngineForBuildSampleWiki(path)
@@ -101,7 +103,7 @@ static async Task<int> BuildSampleWikiAsync(List<string> args)
 
 static async Task<int> CreateDatabaseAsync(List<string> args)
 {
-    var (_, useWasm, remaining) = ExtractDbPathAndWasm(args);
+    var (_, useWasm, _, _, remaining) = ExtractDbPathAndOptions(args);
     var (storageBackend, remainingAfterStorage) = ExtractStorageBackend(remaining);
     if (remainingAfterStorage.Count < 1)
     {
@@ -165,13 +167,15 @@ static async Task<int> ExecAsync(List<string> args)
     if (dbPath == null)
         return 1;
 
-    var (_, useWasm, _) = ExtractDbPathAndWasm(args);
-    var (engine, enginePath) = CreateEngineAndPath(dbPath, useWasm);
-    var result = await engine.ExecuteAsync(statement, enginePath);
+    var (_, useWasm, useMemory, persist, _) = ExtractDbPathAndOptions(args);
+    var (engine, enginePath, onComplete, _) = await CreateEngineAndPathAsync(dbPath, useWasm, useMemory, persist).ConfigureAwait(false);
+    var result = await engine.ExecuteAsync(statement, enginePath).ConfigureAwait(false);
     foreach (var w in result.Warnings ?? [])
         Console.Error.WriteLine($"Warning: {w}");
     if (result.RowsAffected > 0)
         Console.WriteLine($"Rows affected: {result.RowsAffected}");
+    if (onComplete != null)
+        await onComplete().ConfigureAwait(false);
     return 0;
 }
 
@@ -181,9 +185,9 @@ static async Task<int> QueryAsync(List<string> args)
     if (dbPath == null)
         return 1;
 
-    var (_, useWasm, _) = ExtractDbPathAndWasm(args);
-    var (engine, enginePath) = CreateEngineAndPath(dbPath, useWasm);
-    var result = await engine.ExecuteQueryAsync(query, enginePath);
+    var (_, useWasm, useMemory, persist, _) = ExtractDbPathAndOptions(args);
+    var (engine, enginePath, onComplete, _) = await CreateEngineAndPathAsync(dbPath, useWasm, useMemory, persist).ConfigureAwait(false);
+    var result = await engine.ExecuteQueryAsync(query, enginePath).ConfigureAwait(false);
     if (result.QueryResult == null)
     {
         Console.Error.WriteLine("Expected SELECT query");
@@ -191,12 +195,14 @@ static async Task<int> QueryAsync(List<string> args)
     }
 
     PrintResultGrid(result.QueryResult);
+    if (onComplete != null)
+        await onComplete().ConfigureAwait(false);
     return 0;
 }
 
 static async Task<int> ScriptAsync(List<string> args)
 {
-    var (dbPath, useWasm, remaining) = ExtractDbPathAndWasm(args);
+    var (dbPath, useWasm, useMemory, persist, remaining) = ExtractDbPathAndOptions(args);
     if (dbPath == null || remaining.Count < 1)
     {
         Console.Error.WriteLine("script requires --db <path> and <file>");
@@ -211,19 +217,21 @@ static async Task<int> ScriptAsync(List<string> args)
     }
 
     var content = await File.ReadAllTextAsync(filePath);
-    var (engine, enginePath) = CreateEngineAndPath(dbPath, useWasm);
-    var result = await engine.ExecuteScriptAsync(content, enginePath);
+    var (engine, enginePath, onComplete, _) = await CreateEngineAndPathAsync(dbPath, useWasm, useMemory, persist).ConfigureAwait(false);
+    var result = await engine.ExecuteScriptAsync(content, enginePath).ConfigureAwait(false);
     foreach (var qr in result.QueryResults)
         PrintResultGrid(qr);
     foreach (var w in result.Warnings)
         Console.Error.WriteLine($"Warning: {w}");
     Console.WriteLine($"Executed {result.StatementsExecuted} statements");
+    if (onComplete != null)
+        await onComplete().ConfigureAwait(false);
     return 0;
 }
 
 static async Task<int> RebalanceAsync(List<string> args)
 {
-    var (dbPath, useWasm, remaining) = ExtractDbPathAndWasm(args);
+    var (dbPath, useWasm, useMemory, persist, remaining) = ExtractDbPathAndOptions(args);
     if (dbPath == null)
     {
         Console.Error.WriteLine("rebalance requires --db <path>");
@@ -238,27 +246,29 @@ static async Task<int> RebalanceAsync(List<string> args)
     }
 
     var tableName = remaining[tableIdx + 1];
-    var (engine, enginePath) = CreateEngineAndPath(dbPath, useWasm);
-    var count = await engine.RebalanceTableAsync(enginePath, tableName);
+    var (engine, enginePath, onComplete, _) = await CreateEngineAndPathAsync(dbPath, useWasm, useMemory, persist).ConfigureAwait(false);
+    var count = await engine.RebalanceTableAsync(enginePath, tableName).ConfigureAwait(false);
     Console.WriteLine($"Rebalanced table {tableName}: {count} rows processed.");
+    if (onComplete != null)
+        await onComplete().ConfigureAwait(false);
     return 0;
 }
 
 static async Task<int> InspectAsync(List<string> args)
 {
-    var (dbPath, useWasm, _) = ExtractDbPathAndWasm(args);
+    var (dbPath, useWasm, useMemory, persist, _) = ExtractDbPathAndOptions(args);
     if (dbPath == null)
     {
         Console.Error.WriteLine("inspect requires --db <path>");
         return 1;
     }
 
-    var (engine, enginePath) = CreateEngineAndPath(dbPath, useWasm);
+    var (engine, enginePath, onComplete, fsFromEngine) = await CreateEngineAndPathAsync(dbPath, useWasm, useMemory, persist).ConfigureAwait(false);
     await engine.OpenAsync(enginePath);
 
-    var fs = useWasm
+    var fs = fsFromEngine ?? (useWasm
         ? (IFileSystemAccessor)new PersistedMemoryFileSystemAccessor(GetWasmPersistencePath(dbPath))
-        : new FileSystemAccessor();
+        : new FileSystemAccessor());
     var tablesPath = fs.Combine(enginePath, "Tables");
     if (!fs.DirectoryExists(tablesPath))
     {
@@ -287,12 +297,14 @@ static async Task<int> InspectAsync(List<string> args)
         Console.WriteLine();
     }
 
+    if (onComplete != null)
+        await onComplete().ConfigureAwait(false);
     return 0;
 }
 
 static (string? DbPath, string Arg) ParseDbAndArg(List<string> args, string cmd)
 {
-    var (dbPath, _, remaining) = ExtractDbPathAndWasm(args);
+    var (dbPath, _, _, _, remaining) = ExtractDbPathAndOptions(args);
     if (dbPath == null)
         return (null, "");
 
@@ -308,11 +320,13 @@ static (string? DbPath, string Arg) ParseDbAndArg(List<string> args, string cmd)
     return (dbPath, arg);
 }
 
-static (string? DbPath, bool UseWasm, List<string> Remaining) ExtractDbPathAndWasm(List<string> args)
+static (string? DbPath, bool UseWasm, bool UseMemory, bool Persist, List<string> Remaining) ExtractDbPathAndOptions(List<string> args)
 {
     var list = new List<string>(args);
     string? dbPath = null;
     var useWasm = false;
+    var useMemory = false;
+    var persist = false;
 
     var dbIdx = list.IndexOf("--db");
     if (dbIdx >= 0 && dbIdx + 1 < list.Count)
@@ -329,19 +343,43 @@ static (string? DbPath, bool UseWasm, List<string> Remaining) ExtractDbPathAndWa
         list.RemoveAt(wasmIdx);
     }
 
-    return (dbPath, useWasm, list);
+    var memoryIdx = list.IndexOf("--memory");
+    if (memoryIdx >= 0)
+    {
+        useMemory = true;
+        list.RemoveAt(memoryIdx);
+    }
+
+    var persistIdx = list.IndexOf("--persist");
+    if (persistIdx >= 0)
+    {
+        persist = true;
+        list.RemoveAt(persistIdx);
+    }
+
+    return (dbPath, useWasm, useMemory, persist, list);
 }
 
-static (IDatabaseEngine Engine, string EnginePath) CreateEngineAndPath(string dbPath, bool useWasm)
+static async Task<(IDatabaseEngine Engine, string EnginePath, Func<Task>? OnComplete, IFileSystemAccessor? Fs)> CreateEngineAndPathAsync(string dbPath, bool useWasm, bool useMemory, bool persist)
 {
+    if (useMemory && !useWasm)
+    {
+        var (memory, virtualRoot) = await DatabaseLoader.LoadIntoMemoryAsync(dbPath).ConfigureAwait(false);
+        var engine = new DatabaseEngine(fs: memory);
+        Func<Task>? onComplete = null;
+        if (persist)
+            onComplete = async () => await DatabaseLoader.SaveToDiskAsync(memory, dbPath, virtualRoot).ConfigureAwait(false);
+        return (engine, virtualRoot, onComplete, memory);
+    }
+
     if (!useWasm)
-        return (new DatabaseEngine(), dbPath);
+        return (new DatabaseEngine(), dbPath, null, null);
 
     var persistencePath = GetWasmPersistencePath(dbPath);
-    var fs = new PersistedMemoryFileSystemAccessor(persistencePath);
-    var engine = new DatabaseEngine(fs: fs);
-    var virtualRoot = PersistedMemoryFileSystemAccessor.GetVirtualRootFromPersistencePath(persistencePath);
-    return (engine, virtualRoot);
+    var wasmFs = new PersistedMemoryFileSystemAccessor(persistencePath);
+    var wasmEngine = new DatabaseEngine(fs: wasmFs);
+    var wasmRoot = PersistedMemoryFileSystemAccessor.GetVirtualRootFromPersistencePath(persistencePath);
+    return (wasmEngine, wasmRoot, null, wasmFs);
 }
 
 static string GetWasmPersistencePath(string path)

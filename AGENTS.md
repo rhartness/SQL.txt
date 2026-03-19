@@ -17,13 +17,14 @@
 | **Phase 1** | Done | Core engine: CREATE DATABASE/TABLE, INSERT, SELECT, UPDATE, DELETE; fixed-width CHAR(n) only; SQL:2023 subset |
 | **Phase 2** | Done | Indexes, PK/FK, constraints, STOC, configurable sharding (20MB default), rebalance API |
 | **Phase 3** | Done | VARCHAR, variable-width fields, storage evolution |
-| **Phase 4** | Next | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
+| **Phase 3.5** | Next | Storage & ingest efficiency (batched INSERT path, append I/O, sorted indexes); see [Phase3_5_Storage_Efficiency_Plan.md](docs/plans/Phase3_5_Storage_Efficiency_Plan.md) |
+| **Phase 4** | After 3.5 | JOINs, aggregates, ORDER BY, GROUP BY, subqueries |
 | **CTE Phase** | Planned | Common Table Expressions (WITH clause); non-recursive and recursive |
 | **Phase 5** | Planned | ALTER TABLE, transactions |
 | **Phase 6** | Planned | Views, stored procedures, functions |
 | **Phase 7** | Planned | Statistics (CREATE STATISTICS, histograms, cardinality estimation) |
 
-**Current focus:** Phase 4. When starting a new session, check [docs/plans/](docs/plans/) for the latest plan and phase status.
+**Current focus:** Phase 3.5 (storage & ingest efficiency). When starting a new session, check [docs/plans/](docs/plans/) and [Phase3_5_Storage_Efficiency_Plan.md](docs/plans/Phase3_5_Storage_Efficiency_Plan.md).
 
 ## Prompt Strategy
 
@@ -47,7 +48,9 @@ When generating plan documents, consider asking: "Do you want specific manual te
 - **Location:** [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests)
 - **When to run:** After storage, sharding, or concurrency changes
 - **Tests:** `concurrency`, `sharding`, `sharding-varchar`, `all`
-- **Command:** `dotnet run --project src/SqlTxt.ManualTests -- <test> --db ./TestDb [--storage all]`
+- **Defaults:** Use the repo’s **`manual-test-artifacts/`** tree — omit `--db` to get `manual-test-artifacts/run-<timestamp>/`; omit `--log` for `manual-test-artifacts/logs/ManualTests_<timestamp>.log`. Do **not** use `--db .` at the repo root for agent runs.
+- **Retention:** Default **`--save-db` is off** — the run directory (or `WikiDb` / `VarcharShardingDb` / `ManualTest_*` under an explicit `--db`) is deleted after the run. Pass **`--save-db`** to keep databases for inspection.
+- **Command:** `dotnet run --project src/SqlTxt.ManualTests -- <test> [--storage all] [--save-db]`
 - **Prompt:** "Do you want specific manual tests generated for this feature?" when adding storage/sharding/concurrency features
 
 ## Efficiency Requirements (Knuth-Style)

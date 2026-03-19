@@ -11,10 +11,10 @@ public sealed class FormatAwareRowSerializer : IRowSerializer
     private readonly FixedWidthRowSerializer _fixed = new();
     private readonly VariableWidthRowSerializer _variable = new();
 
-    public string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null)
+    public string Serialize(RowData row, TableDefinition table, bool isActive = true, List<string>? warnings = null, string? tableName = null, MvccRowVersions? mvcc = null)
     {
         return table.RowFormatVersion == TableDefinition.RowFormatVersionVariableWidth
-            ? _variable.Serialize(row, table, isActive, warnings, tableName)
-            : _fixed.Serialize(row, table, isActive, warnings, tableName);
+            ? _variable.Serialize(row, table, isActive, warnings, tableName, mvcc)
+            : _fixed.Serialize(row, table, isActive, warnings, tableName, mvcc);
     }
 }

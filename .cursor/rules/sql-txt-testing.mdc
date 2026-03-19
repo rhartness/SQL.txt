@@ -32,10 +32,12 @@ Use known input and expected output files for:
 ## Manual Tests
 
 - **Location:** [src/SqlTxt.ManualTests](src/SqlTxt.ManualTests)
-- **Tests:** `concurrency`, `sharding`, `sharding-varchar`
-- **Run:** `dotnet run --project src/SqlTxt.ManualTests -- <test> --db ./TestDb`
-- Use `--storage all` to compare text vs binary
-- When adding storage/sharding/format features: extend manual tests and run them
+- **Tests:** `concurrency`, `sharding`, `sharding-varchar`, `all`
+- **Run (agents / Cursor):** Prefer repo-local artifacts — **`dotnet run --project src/SqlTxt.ManualTests -- <test>`** with **no `--db`** (resolves under `manual-test-artifacts/run-<timestamp>/`). Avoid `--db .` at the repository root.
+- **Logs:** Default `manual-test-artifacts/logs/ManualTests_<timestamp>.log` when `--log` is omitted.
+- **Cleanup:** Without **`--save-db`**, test database folders are removed after the run; add **`--save-db`** to retain them.
+- Use `--storage all` to compare text vs binary; `--batched-inserts` / `--insert-batch` for concurrency insert batching.
+- When adding storage/sharding/format/concurrency features: extend manual tests and run them
 
 ## Guidelines
 
