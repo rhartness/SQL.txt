@@ -278,6 +278,35 @@ public class DatabaseEngineTests
         }
     }
 
+    /// <summary>
+    /// PK index lines must sort by key prefix (not full line) so numeric-looking CHAR keys like "100" binary-search correctly after "99".
+    /// </summary>
+    [Fact]
+    public async Task VarcharTable_CharPk_Lookup_FindsRowAfterLexicographicKeyOrdering()
+    {
+        var dbName = "SqlTxtEngine_" + Guid.NewGuid().ToString("N")[..8];
+        var tempDir = Path.GetFullPath(Path.GetTempPath());
+        var dir = Path.GetFullPath(Path.Combine(tempDir, dbName));
+        var engine = new DatabaseEngine();
+        try
+        {
+            await engine.ExecuteAsync($"CREATE DATABASE {dbName}", tempDir);
+            await engine.ExecuteAsync("CREATE TABLE Notes (Id CHAR(10) PRIMARY KEY, Content VARCHAR(80))", dir);
+            var values = string.Join(", ", Enumerable.Range(0, 110).Select(i => $"('{i}', 'x')"));
+            await engine.ExecuteAsync($"INSERT INTO Notes (Id, Content) VALUES {values}", dir);
+
+            var pk = await engine.ExecuteQueryAsync("SELECT Id FROM Notes WHERE Id = '100'", dir);
+            Assert.NotNull(pk.QueryResult);
+            Assert.Single(pk.QueryResult.Rows);
+            Assert.Equal("100", pk.QueryResult.Rows[0].GetValue("Id"));
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task BuildSampleWiki_CreatesDatabase()
     {

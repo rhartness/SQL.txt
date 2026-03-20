@@ -1,4 +1,5 @@
 using SqlTxt.ManualTests.Compare;
+using SqlTxt.ManualTests.Diagnostics;
 using SqlTxt.ManualTests.Results;
 using SqlTxt.ManualTests.Tests;
 
@@ -12,7 +13,10 @@ internal readonly record struct ManualTestCommonOptions(
     string? CompareWith,
     bool SaveDb,
     bool UserSpecifiedDbDirectory,
-    string? DefaultRunDirectoryToDelete);
+    string? DefaultRunDirectoryToDelete,
+    bool RequireBeatLocalDb,
+    bool DiagnosticsEnabled,
+    double? FailOnDeficitRatio);
 
 /// <summary>
 /// Manual test driver: workspace defaults under manual-test-artifacts/, optional DB retention.
@@ -41,135 +45,73 @@ internal static class ManualTestProgram
         var exitCode = 1;
         try
         {
-            using var logger = new ResultLogger(options.LogPath, options.Verbose);
+            var runId = Guid.NewGuid().ToString("N");
+            using var logger = new ResultLogger(options.LogPath, options.Verbose, runId);
+            using var diagnosticRun = ManualTestRunContext.TryStart(options.DiagnosticsEnabled, options.LogPath, runId);
             logger.Log($"SQL.txt Manual Tests - {testName}");
             logger.Log($"Database path: {options.DbPath}");
-            logger.Log($"Storage: {options.Storage}");
-            if (options.CompareWith is not null)
-                logger.Log($"Compare with: {options.CompareWith}");
+            logger.Log(options.Storage == "all"
+                ? "Storage: all (SQL.txt text + binary filesystem, plus LocalDB for every test that has a LocalDB scenario)"
+                : $"Storage: {options.Storage}");
+            if (options.CompareWith is not null && options.Storage != "all")
+                logger.Log($"Compare with: {options.CompareWith} (LocalDB runs in addition to SqlTxt storage above)");
             logger.Log($"Log file: {options.LogPath}");
+            if (options.DiagnosticsEnabled && diagnosticRun is not null)
+                logger.Log($"Diagnostics JSONL: {diagnosticRun.DiagnosticsJsonlPath}");
             logger.Log($"Save database on disk: {options.SaveDb}");
             logger.Log(string.Empty);
 
             var results = new List<TestResult>();
+            var sqlTxtSlowerThanLocalDb = false;
+            var deficitRatioViolation = false;
             try
             {
-                var isPhase4 = IsPhase4TestName(testName);
-                var isLegacyValid = testName is "concurrency" or "sharding" or "sharding-varchar" or "all";
-                if (!isPhase4 && !isLegacyValid)
+                if (!IsKnownManualTest(testName))
                 {
                     var unknown = UnknownTest(testName);
                     results.Add(unknown);
                     logger.LogResult(unknown);
                 }
-                else if (isPhase4)
+                else if (testName == "all")
                 {
-                    if (options.CompareWith == "localdb")
-                    {
-                        logger.Log(
-                            "Note: --compare:localdb is ignored for Phase 4 manual tests. " +
-                            "LocalDB parity is not used for these feature-specific scenarios (and may not match SQL.txt Phase 4 surface area).");
-                    }
-
-                    if (options.Storage == "all")
-                    {
-                        var textPath = Path.Combine(options.DbPath, "ManualTest_Text");
-                        var binaryPath = Path.Combine(options.DbPath, "ManualTest_Binary");
-                        results = await RunPhase4StorageAllAsync(testName, textPath, binaryPath, logger).ConfigureAwait(false);
-                    }
-                    else
-                    {
-                        results = await RunPhase4SingleStorageAsync(testName, options.DbPath, logger, options.Storage).ConfigureAwait(false);
-                    }
-
-                    if (options.Verbose)
-                        foreach (var r in results)
-                            logger.LogResult(r);
-                    logger.LogSummaryTable(results);
+                    results = await RunFullSuiteAsync(argsList, options, logger).ConfigureAwait(false);
                 }
-                else if (options.Storage == "all")
+                else if (IsPhase4TestName(testName))
                 {
-                    var textPath = Path.Combine(options.DbPath, "ManualTest_Text");
-                    var binaryPath = Path.Combine(options.DbPath, "ManualTest_Binary");
-                    var collected = new List<TestResult>();
-
-                    if (testName is "concurrency" or "all")
-                    {
-                        collected.Add(await RunConcurrencyAsync(argsList, textPath, logger, "text").ConfigureAwait(false));
-                        collected.Add(await RunConcurrencyAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
-                        if (options.CompareWith == "localdb")
-                            collected.Add(await RunLocalDbConcurrencyAsync(argsList, logger).ConfigureAwait(false));
-                    }
-                    if (testName is "sharding" or "all")
-                    {
-                        collected.Add(await RunShardingAsync(argsList, textPath, logger, "text").ConfigureAwait(false));
-                        collected.Add(await RunShardingAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
-                        if (options.CompareWith == "localdb")
-                            collected.Add(await RunLocalDbShardingAsync(argsList, logger).ConfigureAwait(false));
-                    }
-                    if (testName is "sharding-varchar" or "all")
-                    {
-                        collected.Add(await RunVarcharShardingAsync(argsList, textPath, logger, "text").ConfigureAwait(false));
-                        collected.Add(await RunVarcharShardingAsync(argsList, binaryPath, logger, "binary").ConfigureAwait(false));
-                        if (options.CompareWith == "localdb")
-                            collected.Add(await RunLocalDbVarcharShardingAsync(argsList, logger).ConfigureAwait(false));
-                    }
-                    results = collected;
-                    if (options.Verbose)
-                        foreach (var r in collected)
-                            logger.LogResult(r);
-                    logger.LogSummaryTable(collected);
+                    results = await RunPhase4DriverAsync(testName, argsList, options, logger).ConfigureAwait(false);
                 }
                 else
                 {
-                    var result = testName switch
-                    {
-                        "concurrency" => await RunConcurrencyAsync(argsList, options.DbPath, logger, options.Storage),
-                        "sharding" => await RunShardingAsync(argsList, options.DbPath, logger, options.Storage),
-                        "sharding-varchar" => await RunVarcharShardingAsync(argsList, options.DbPath, logger, options.Storage),
-                        "all" => await RunAllAsync(argsList, options.DbPath, logger, options.Storage),
-                        _ => UnknownTest(testName)
-                    };
-                    results.Add(result);
-                    if (options.CompareWith == "localdb" && !isPhase4)
-                    {
-                        if (options.Storage == "text")
-                        {
-                            var binaryPath = Path.Combine(options.DbPath, "ManualTest_Binary_Compare");
-                            var binaryResult = testName switch
-                            {
-                                "concurrency" => await RunConcurrencyAsync(new List<string>(argsList), binaryPath, logger, "binary").ConfigureAwait(false),
-                                "sharding" => await RunShardingAsync(new List<string>(argsList), binaryPath, logger, "binary").ConfigureAwait(false),
-                                "sharding-varchar" => await RunVarcharShardingAsync(new List<string>(argsList), binaryPath, logger, "binary").ConfigureAwait(false),
-                                "all" => await RunAllAsync(new List<string>(argsList), binaryPath, logger, "binary").ConfigureAwait(false),
-                                _ => (TestResult?)null
-                            };
-                            if (binaryResult is not null)
-                                results.Add(binaryResult);
-                        }
-                        if (testName == "all")
-                        {
-                            results.Add(await RunLocalDbConcurrencyAsync(argsList, logger).ConfigureAwait(false));
-                            results.Add(await RunLocalDbShardingAsync(argsList, logger).ConfigureAwait(false));
-                            results.Add(await RunLocalDbVarcharShardingAsync(argsList, logger).ConfigureAwait(false));
-                        }
-                        else
-                        {
-                            var localDbResult = testName switch
-                            {
-                                "concurrency" => await RunLocalDbConcurrencyAsync(argsList, logger).ConfigureAwait(false),
-                                "sharding" => await RunLocalDbShardingAsync(argsList, logger).ConfigureAwait(false),
-                                "sharding-varchar" => await RunLocalDbVarcharShardingAsync(argsList, logger).ConfigureAwait(false),
-                                _ => (TestResult?)null
-                            };
-                            if (localDbResult is not null)
-                                results.Add(localDbResult);
-                        }
-                    }
-                    if (options.Verbose)
-                        foreach (var r in results)
-                            logger.LogResult(r);
-                    logger.LogSummaryTable(results);
+                    results = await RunLegacySubtestExpandedAsync(
+                        testName,
+                        argsList,
+                        options.DbPath,
+                        logger,
+                        options.Storage,
+                        options.CompareWith).ConfigureAwait(false);
+                }
+
+                if (options.Verbose)
+                    foreach (var r in results)
+                        logger.LogResult(r);
+                results = EnrichResultsWithRunMetadata(results, runId, diagnosticRun?.DiagnosticsJsonlPath);
+                logger.LogSummaryTable(results);
+
+                var issuesPath = ManualTestIssuesReport.WriteMarkdown(
+                    options.LogPath,
+                    results,
+                    runId,
+                    ManualTestComparator.DefaultSuite,
+                    out sqlTxtSlowerThanLocalDb);
+                logger.Log($"Secondary report (errors + SqlTxt vs LocalDB): {issuesPath}");
+                if (options.RequireBeatLocalDb && sqlTxtSlowerThanLocalDb)
+                    logger.Log("FAIL (--require-beat-localdb): at least one passing SqlTxt run was slower than LocalDB for the same test. See #slower-than-localdb in the secondary report.");
+                if (options.FailOnDeficitRatio is { } maxRatio
+                    && ManualTestIssuesReport.AnyDeficitExceedsRatio(results, maxRatio, ManualTestComparator.DefaultSuite))
+                {
+                    deficitRatioViolation = true;
+                    logger.Log(
+                        $"FAIL (--fail-on-deficit-ratio {maxRatio.ToString(System.Globalization.CultureInfo.InvariantCulture)}): SqlTxt text/binary exceeded duration ratio vs baseline. See #deficits in the secondary report.");
                 }
             }
             catch (Exception ex)
@@ -182,7 +124,9 @@ internal static class ManualTestProgram
             logger.Log($"Results written to {options.LogPath}");
 
             var passed = results.Count > 0 && results.All(r => r.Passed);
-            exitCode = passed ? 0 : 1;
+            var beatOk = !options.RequireBeatLocalDb || !sqlTxtSlowerThanLocalDb;
+            var deficitOk = !deficitRatioViolation;
+            exitCode = passed && beatOk && deficitOk ? 0 : 1;
         }
         catch (Exception ex)
         {
@@ -258,6 +202,180 @@ internal static class ManualTestProgram
         TryDel(Path.Combine(dbRoot, "Phase4SubqueriesDb"));
     }
 
+    private static readonly string[] LegacyOrderedSubtests =
+    {
+        "concurrency", "sharding", "sharding-varchar"
+    };
+
+    private static readonly string[] Phase4OrderedSubtests =
+    {
+        "phase4-bind-expr", "phase4-joins", "phase4-orderby", "phase4-groupby", "phase4-subqueries"
+    };
+
+    private static readonly string[] FullSuiteOrderedSubtests =
+        LegacyOrderedSubtests.Concat(Phase4OrderedSubtests).ToArray();
+
+    private static bool IsKnownManualTest(string name) =>
+        name is "all"
+        || IsPhase4TestName(name)
+        || LegacyOrderedSubtests.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    private static bool IsPhase4SingleSubtest(string name) =>
+        Phase4OrderedSubtests.Contains(name, StringComparer.OrdinalIgnoreCase);
+
+    private static bool IncludeLocalDb(string storage, string? compareWith) =>
+        storage == "all" || string.Equals(compareWith, "localdb", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// SqlTxt filesystem backends to run before optional LocalDB. When <paramref name="storage"/> is <c>all</c>,
+    /// uses ManualTest_Text / ManualTest_Binary under <paramref name="dbBase"/>.
+    /// </summary>
+    private static List<(string Path, string Backend)> SqlTxtFilesystemBackends(string dbBase, string storage, string? compareWith)
+    {
+        var textPath = Path.Combine(dbBase, "ManualTest_Text");
+        var binaryPath = Path.Combine(dbBase, "ManualTest_Binary");
+        var binaryComparePath = Path.Combine(dbBase, "ManualTest_Binary_Compare");
+
+        return storage switch
+        {
+            "all" => [(textPath, "text"), (binaryPath, "binary")],
+            "text" when compareWith == "localdb" => [(dbBase, "text"), (binaryComparePath, "binary")],
+            "text" => [(dbBase, "text")],
+            "binary" when compareWith == "localdb" => [(dbBase, "binary")],
+            "binary" => [(dbBase, "binary")],
+            _ => [(dbBase, "text")]
+        };
+    }
+
+    private static async Task<List<TestResult>> RunFullSuiteAsync(
+        List<string> args,
+        ManualTestCommonOptions options,
+        ResultLogger logger)
+    {
+        var results = new List<TestResult>();
+        for (var i = 0; i < FullSuiteOrderedSubtests.Length;)
+        {
+            var id = FullSuiteOrderedSubtests[i];
+            if (IsPhase4SingleSubtest(id))
+            {
+                var block = new List<string>();
+                while (i < FullSuiteOrderedSubtests.Length && IsPhase4SingleSubtest(FullSuiteOrderedSubtests[i]))
+                {
+                    block.Add(FullSuiteOrderedSubtests[i]);
+                    i++;
+                }
+
+                results.AddRange(
+                    await RunPhase4BlockExpandedAsync(block, options.DbPath, logger, options.Storage, options.CompareWith)
+                        .ConfigureAwait(false));
+            }
+            else
+            {
+                results.AddRange(
+                    await RunLegacySubtestExpandedAsync(id, args, options.DbPath, logger, options.Storage, options.CompareWith)
+                        .ConfigureAwait(false));
+                i++;
+            }
+        }
+
+        return results;
+    }
+
+    private static Task<List<TestResult>> RunPhase4DriverAsync(
+        string testName,
+        List<string> args,
+        ManualTestCommonOptions options,
+        ResultLogger logger)
+    {
+        var subs = testName == "phase4-all" ? Phase4OrderedSubtests : new[] { testName };
+        return RunPhase4BlockExpandedAsync(subs, options.DbPath, logger, options.Storage, options.CompareWith);
+    }
+
+    /// <summary>
+    /// Runs Phase 4 SqlTxt backends for each subtest, then LocalDB either per subtest or once for the full block when
+    /// <paramref name="subs"/> is the complete ordered Phase 4 list and LocalDB is enabled.
+    /// </summary>
+    private static async Task<List<TestResult>> RunPhase4BlockExpandedAsync(
+        IReadOnlyList<string> subs,
+        string dbBase,
+        ResultLogger logger,
+        string storage,
+        string? compareWith)
+    {
+        var results = new List<TestResult>();
+        foreach (var sub in subs)
+        {
+            foreach (var (path, backend) in SqlTxtFilesystemBackends(dbBase, storage, compareWith))
+            {
+                results.Add(await RunPhase4OneAsync(sub, path, logger, backend).ConfigureAwait(false));
+            }
+        }
+
+        var singleLocalDb = ShouldRunPhase4LocalDbSingleDatabase(subs, storage, compareWith);
+
+        if (IncludeLocalDb(storage, compareWith) && !singleLocalDb)
+        {
+            foreach (var sub in subs)
+            {
+                results.Add(await RunPhase4OneAsync(sub, dbBase, logger, "localdb").ConfigureAwait(false));
+            }
+        }
+
+        if (singleLocalDb)
+        {
+            results.AddRange(await LocalDbComparisons.RunPhase4SuiteSingleDatabaseAsync(logger).ConfigureAwait(false));
+        }
+
+        return results;
+    }
+
+    private static bool ShouldRunPhase4LocalDbSingleDatabase(
+        IReadOnlyList<string> subs,
+        string storage,
+        string? compareWith)
+    {
+        if (!IncludeLocalDb(storage, compareWith) || subs.Count != Phase4OrderedSubtests.Length)
+            return false;
+        return subs.SequenceEqual(Phase4OrderedSubtests, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static async Task<List<TestResult>> RunLegacySubtestExpandedAsync(
+        string testId,
+        List<string> args,
+        string dbBase,
+        ResultLogger logger,
+        string storage,
+        string? compareWith)
+    {
+        var results = new List<TestResult>();
+        foreach (var (path, backend) in SqlTxtFilesystemBackends(dbBase, storage, compareWith))
+        {
+            var r = testId switch
+            {
+                "concurrency" => await RunConcurrencyAsync(new List<string>(args), path, logger, backend).ConfigureAwait(false),
+                "sharding" => await RunShardingAsync(new List<string>(args), path, logger, backend).ConfigureAwait(false),
+                "sharding-varchar" => await RunVarcharShardingAsync(new List<string>(args), path, logger, backend)
+                    .ConfigureAwait(false),
+                _ => UnknownTest(testId)
+            };
+            results.Add(r);
+        }
+
+        if (IncludeLocalDb(storage, compareWith))
+        {
+            var lr = testId switch
+            {
+                "concurrency" => await RunLocalDbConcurrencyAsync(args, logger).ConfigureAwait(false),
+                "sharding" => await RunLocalDbShardingAsync(args, logger).ConfigureAwait(false),
+                "sharding-varchar" => await RunLocalDbVarcharShardingAsync(args, logger).ConfigureAwait(false),
+                _ => UnknownTest(testId)
+            };
+            results.Add(lr);
+        }
+
+        return results;
+    }
+
     private static ManualTestCommonOptions ParseCommonOptions(List<string> args, string repoRoot)
     {
         string? dbPath = null;
@@ -267,6 +385,9 @@ internal static class ManualTestProgram
         string? compareWith = null;
         var saveDb = false;
         var userSpecifiedDb = false;
+        var requireBeatLocalDb = false;
+        var diagnosticsEnabled = false;
+        double? failOnDeficitRatio = null;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -314,6 +435,27 @@ internal static class ManualTestProgram
                 args.RemoveAt(i);
                 i--;
             }
+            else if (args[i] == "--require-beat-localdb")
+            {
+                requireBeatLocalDb = true;
+                args.RemoveAt(i);
+                i--;
+            }
+            else if (args[i] == "--diagnostics")
+            {
+                diagnosticsEnabled = true;
+                args.RemoveAt(i);
+                i--;
+            }
+            else if (args[i] == "--fail-on-deficit-ratio" && i + 1 < args.Count
+                     && double.TryParse(args[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ratio)
+                     && ratio > 0)
+            {
+                failOnDeficitRatio = ratio;
+                args.RemoveAt(i);
+                args.RemoveAt(i);
+                i--;
+            }
         }
 
         var artifactsDir = Path.Combine(repoRoot, "manual-test-artifacts");
@@ -337,8 +479,17 @@ internal static class ManualTestProgram
             compareWith,
             saveDb,
             userSpecifiedDb,
-            defaultRunDirectoryToDelete);
+            defaultRunDirectoryToDelete,
+            requireBeatLocalDb,
+            diagnosticsEnabled,
+            failOnDeficitRatio);
     }
+
+    private static List<TestResult> EnrichResultsWithRunMetadata(
+        IReadOnlyList<TestResult> results,
+        string runId,
+        string? diagnosticsJsonlPath) =>
+        results.Select(r => r with { RunId = runId, DiagnosticsJsonlPath = diagnosticsJsonlPath }).ToList();
 
     private static async Task<TestResult> RunConcurrencyAsync(List<string> args, string dbPath, ResultLogger logger, string storage)
     {
@@ -402,25 +553,6 @@ internal static class ManualTestProgram
         var storageBackend = storage is "binary" ? "binary" : null;
         logger.Log($"Sharding test: desired shards={shards}, rows={rows}, storage={storage}");
         return await ShardingTest.RunAsync(dbPath, shards, rows, storageBackend, logger).ConfigureAwait(false);
-    }
-
-    private static async Task<TestResult> RunAllAsync(List<string> args, string dbPath, ResultLogger logger, string storage)
-    {
-        var concurrencyResult = await RunConcurrencyAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
-        var shardingResult = await RunShardingAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
-        var varcharShardingResult = await RunVarcharShardingAsync(new List<string>(args), dbPath, logger, storage).ConfigureAwait(false);
-
-        var passed = concurrencyResult.Passed && shardingResult.Passed && varcharShardingResult.Passed;
-        return new TestResult(
-            "All",
-            passed,
-            concurrencyResult.Duration + shardingResult.Duration + varcharShardingResult.Duration,
-            concurrencyResult.OperationsCount + shardingResult.OperationsCount + varcharShardingResult.OperationsCount,
-            concurrencyResult.SuccessCount + shardingResult.SuccessCount + varcharShardingResult.SuccessCount,
-            concurrencyResult.FailureCount + shardingResult.FailureCount + varcharShardingResult.FailureCount,
-            concurrencyResult.Exceptions.Concat(shardingResult.Exceptions).Concat(varcharShardingResult.Exceptions).ToList(),
-            null,
-            storage is "binary" ? "binary" : null);
     }
 
     private static async Task<TestResult> RunLocalDbConcurrencyAsync(List<string> args, ResultLogger logger)
@@ -491,47 +623,21 @@ internal static class ManualTestProgram
     private static bool IsPhase4TestName(string name) =>
         name is "phase4-bind-expr" or "phase4-joins" or "phase4-orderby" or "phase4-groupby" or "phase4-subqueries" or "phase4-all";
 
-    private static readonly string[] Phase4OrderedSubtests =
-    {
-        "phase4-bind-expr", "phase4-joins", "phase4-orderby", "phase4-groupby", "phase4-subqueries"
-    };
-
-    private static async Task<List<TestResult>> RunPhase4SingleStorageAsync(
-        string testName,
-        string dbPath,
-        ResultLogger logger,
-        string storage)
-    {
-        var list = new List<TestResult>();
-        if (testName == "phase4-all")
-        {
-            foreach (var sub in Phase4OrderedSubtests)
-                list.Add(await RunPhase4OneAsync(sub, dbPath, logger, storage).ConfigureAwait(false));
-        }
-        else
-            list.Add(await RunPhase4OneAsync(testName, dbPath, logger, storage).ConfigureAwait(false));
-        return list;
-    }
-
-    private static async Task<List<TestResult>> RunPhase4StorageAllAsync(
-        string testName,
-        string textPath,
-        string binaryPath,
-        ResultLogger logger)
-    {
-        var tests = testName == "phase4-all" ? Phase4OrderedSubtests : new[] { testName };
-        var list = new List<TestResult>();
-        foreach (var sub in tests)
-        {
-            list.Add(await RunPhase4OneAsync(sub, textPath, logger, "text").ConfigureAwait(false));
-            list.Add(await RunPhase4OneAsync(sub, binaryPath, logger, "binary").ConfigureAwait(false));
-        }
-
-        return list;
-    }
-
     private static Task<TestResult> RunPhase4OneAsync(string testName, string dbPath, ResultLogger logger, string storage)
     {
+        if (storage == "localdb")
+        {
+            return testName switch
+            {
+                "phase4-bind-expr" => LocalDbComparisons.RunPhase4BindExprAsync(logger),
+                "phase4-joins" => LocalDbComparisons.RunPhase4JoinsAsync(logger),
+                "phase4-orderby" => LocalDbComparisons.RunPhase4OrderByAsync(logger),
+                "phase4-groupby" => LocalDbComparisons.RunPhase4GroupByAsync(logger),
+                "phase4-subqueries" => LocalDbComparisons.RunPhase4SubqueriesAsync(logger),
+                _ => Task.FromResult(UnknownTest(testName))
+            };
+        }
+
         var backend = storage is "binary" ? "binary" : null;
         return testName switch
         {
@@ -554,7 +660,7 @@ internal static class ManualTestProgram
 
     private static void PrintUsage()
     {
-        Console.WriteLine("""
+            Console.WriteLine("""
             SQL.txt Manual Tests - Concurrency, sharding, Phase 4 query features, performance
 
             Usage:
@@ -564,7 +670,7 @@ internal static class ManualTestProgram
               concurrency       High concurrency: multi-thread INSERT/UPDATE/DELETE
               sharding          Sharding: insert many rows (fixed-width), measure query speed
               sharding-varchar  Sharding: insert many rows (VARCHAR), verify rebalance
-              all               Run all legacy tests (concurrency + sharding + sharding-varchar)
+              all               Full suite: legacy tests above + every Phase 4 subtest (ordered)
               phase4-bind-expr  Phase 4.1: compound WHERE / expression binding (see docs/plans/Phase4_01_*.md)
               phase4-joins      Phase 4.2: INNER/LEFT JOIN (Phase4_02_Joins_Execution_Plan.md)
               phase4-orderby    Phase 4.3: ORDER BY (Phase4_03_OrderBy_Sort_Plan.md)
@@ -575,11 +681,15 @@ internal static class ManualTestProgram
             Common options:
               --db <path>       Database parent path (default: manual-test-artifacts/run-<timestamp> under repo)
               --log <path>      Log file (default: manual-test-artifacts/logs/ManualTests_<timestamp>.log)
-              --storage <type>  text | binary | all (default: text). Use 'all' to compare timings.
-              --compare:<db>    Run same test against comparison DB. Use --compare:localdb for SQL Server LocalDB.
-                                Ignored for Phase 4 tests (phase4-*): LocalDB parity does not apply to those scenarios.
+              --storage <type>  text | binary | all (default: text).
+                                'all' = run SQL.txt text + binary (separate dirs) AND LocalDB for every scenario that defines a LocalDB runner.
+              --compare:<db>    Optional when storage is text or binary: add --compare:localdb to also run the LocalDB scenario.
+                                Redundant with --storage all (LocalDB already included; no duplicate LocalDB runs).
               --save-db         Keep database folders after the run (default: delete run dir or WikiDb/VarcharShardingDb/ManualTest_* under --db)
               --verbose        Extra output
+              --require-beat-localdb  Fail exit code 1 if any passing SqlTxt (text/binary) run is slower than LocalDB for the same test (see secondary .md report)
+              --diagnostics    Emit structured JSON Lines trace next to the log (correlate via RunId in log and TestResult rows)
+              --fail-on-deficit-ratio <r>  Fail exit code 1 if any SqlTxt vs baseline duration ratio exceeds r (see #deficits in the secondary .md report; r must be > 0)
 
             Concurrency options:
               --threads <n>     Writer threads (default: 8)
@@ -598,7 +708,8 @@ internal static class ManualTestProgram
               dotnet run --project src/SqlTxt.ManualTests -- sharding --storage all
               dotnet run --project src/SqlTxt.ManualTests -- sharding --compare:localdb
               dotnet run --project src/SqlTxt.ManualTests -- sharding-varchar --rows 200
-              dotnet run --project src/SqlTxt.ManualTests -- all --storage all --compare:localdb
+              dotnet run --project src/SqlTxt.ManualTests -- all --storage all
+              dotnet run --project src/SqlTxt.ManualTests -- phase4-all --storage all
             """);
     }
 }

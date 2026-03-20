@@ -8,7 +8,7 @@ namespace SqlTxt.Parser;
 /// <summary>
 /// Parses SQL text into strongly typed command objects.
 /// </summary>
-public sealed class SqlCommandParser : ICommandParser
+public sealed partial class SqlCommandParser : ICommandParser
 {
     private List<Token> _tokens = new();
     private int _position;
@@ -361,68 +361,7 @@ public sealed class SqlCommandParser : ICommandParser
         return new InsertCommand(tableName, columns, valueRows);
     }
 
-    private SelectCommand ParseSelect()
-    {
-        var columns = new List<string>();
-        if (Peek().Type == TokenType.Asterisk)
-        {
-            Advance();
-            columns = null!; // SELECT *
-        }
-        else
-        {
-            while (true)
-            {
-                var (colName, _, _, fromBrackets) = ExpectIdentifierOrBracketed();
-                IdentifierValidator.ValidateColumnName(colName, fromBrackets);
-                columns.Add(colName);
-                if (Peek().Type != TokenType.Comma)
-                    break;
-                Advance();
-            }
-        }
-
-        ExpectKeyword("FROM");
-        var tableName = ExpectIdentifier().Name;
-        IdentifierValidator.ValidateTableName(tableName);
-
-        var withNoLock = false;
-        if (Peek().Type == TokenType.Keyword && Peek().Value.Equals("WITH", StringComparison.OrdinalIgnoreCase))
-        {
-            Advance();
-            Expect(TokenType.LeftParen);
-            ExpectKeyword("NOLOCK");
-            Expect(TokenType.RightParen);
-            withNoLock = true;
-        }
-
-        string? whereCol = null;
-        string? whereVal = null;
-        if (Peek().Type == TokenType.Keyword && Peek().Value.Equals("WHERE", StringComparison.OrdinalIgnoreCase))
-        {
-            Advance();
-            var (wc, _, _, wcBracketed) = ExpectIdentifierOrBracketed();
-            IdentifierValidator.ValidateColumnName(wc, wcBracketed);
-            whereCol = wc;
-            Expect(TokenType.Equals);
-            var p = Peek();
-            if (p.Type == TokenType.StringLiteral)
-            {
-                Advance();
-                whereVal = p.Value;
-            }
-            else if (p.Type == TokenType.NumberLiteral)
-            {
-                Advance();
-                whereVal = p.Value;
-            }
-            else
-                throw ParseError("Expected literal in WHERE clause", p.Line, p.Column);
-        }
-
-        OptionalSemicolon();
-        return new SelectCommand(tableName, columns?.Count > 0 ? columns : null, whereCol, whereVal, withNoLock);
-    }
+    private SelectCommand ParseSelect() => ParseSelectPhase4();
 
     private UpdateCommand ParseUpdate()
     {

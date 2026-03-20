@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using SqlTxt.Contracts.Exceptions;
+using SqlTxt.ManualTests.Diagnostics;
 using SqlTxt.ManualTests.Results;
 
 namespace SqlTxt.ManualTests.Tests;
@@ -41,6 +42,39 @@ internal static class Phase4ManualTestHelper
         return new TestResult(testName, true, sw.Elapsed, 0, 0, 0, Array.Empty<string>(), d, storage);
     }
 
-    public static TestResult Failed(string testName, Exception ex, Stopwatch sw, string? storage) =>
-        new(testName, false, sw.Elapsed, 1, 0, 1, new[] { ex.ToString() }, null, storage);
+    public static TestResult Failed(
+        string testName,
+        Exception ex,
+        Stopwatch sw,
+        string? storage,
+        ManualTestTrace? trace = null,
+        ResultLogger? logger = null,
+        string? failedStage = null,
+        string? failedStep = null,
+        string? phase4DbPath = null,
+        string? sqlSnippet = null)
+    {
+        IReadOnlyDictionary<string, string>? paths = null;
+        if (!string.IsNullOrEmpty(phase4DbPath))
+        {
+            paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["phase4DbPath"] = Path.GetFullPath(phase4DbPath)
+            };
+        }
+
+        ManualTestFailureSupport.WriteFailureIfEnabled(
+            trace,
+            logger,
+            testName,
+            storage,
+            failedStage,
+            failedStep,
+            ex.ToString(),
+            paths,
+            null,
+            sqlSnippet);
+
+        return new TestResult(testName, false, sw.Elapsed, 1, 0, 1, new[] { ex.ToString() }, null, storage);
+    }
 }

@@ -15,7 +15,9 @@ public sealed class Tokenizer
         "CHAR", "VARCHAR", "INT", "TINYINT", "BIGINT", "BIT", "DECIMAL",
         "NUMBERFORMAT", "TEXTENCODING",
         "PRIMARY", "KEY", "FOREIGN", "REFERENCES", "UNIQUE",
-        "INDEX", "ON", "NOLOCK"
+        "INDEX", "ON", "NOLOCK",
+        "AND", "OR", "INNER", "LEFT", "RIGHT", "OUTER", "JOIN", "ORDER", "BY", "ASC", "DESC",
+        "GROUP", "HAVING", "IN", "EXISTS", "NOT", "AS", "COUNT", "SUM", "AVG", "MIN", "MAX"
     };
 
     private readonly string _input;
@@ -47,12 +49,18 @@ public sealed class Tokenizer
             return Consume(TokenType.RightParen, ")", startLine, startCol);
         if (ch == ',')
             return Consume(TokenType.Comma, ",", startLine, startCol);
+        if (ch == '.')
+            return Consume(TokenType.Dot, ".", startLine, startCol);
         if (ch == ';')
             return Consume(TokenType.Semicolon, ";", startLine, startCol);
         if (ch == '*')
             return Consume(TokenType.Asterisk, "*", startLine, startCol);
         if (ch == '=')
             return Consume(TokenType.Equals, "=", startLine, startCol);
+        if (ch == '>')
+            return Consume(TokenType.GreaterThan, ">", startLine, startCol);
+        if (ch == '<')
+            return Consume(TokenType.LessThan, "<", startLine, startCol);
         if (ch == '[')
             return ReadBracketedIdentifier(startLine, startCol);
 

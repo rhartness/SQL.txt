@@ -9,7 +9,7 @@ namespace SqlTxt.Engine;
 /// <summary>
 /// Main database engine implementation.
 /// </summary>
-public sealed class DatabaseEngine : IDatabaseEngine
+public sealed partial class DatabaseEngine : IDatabaseEngine
 {
     private readonly ICommandParser? _parser;
     private readonly SqlCommandParser _defaultParser;
@@ -150,7 +150,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 return await ExecuteSelectAsync(resolvedPath, select, null, cancellationToken).ConfigureAwait(false);
 
             await using var _schemaSel = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
-            await using var _tblSel = await _lockManager.AcquireTableReadLocksAsync(resolvedPath, new[] { select.TableName }, cancellationToken).ConfigureAwait(false);
+            var selTables = CollectSelectInvolvedTables(select);
+            await using var _tblSel = await _lockManager.AcquireTableReadLocksAsync(resolvedPath, selTables, cancellationToken).ConfigureAwait(false);
             long? snap = null;
             if (await MvccManifest.ReadMvccEnabledAsync(_fs, resolvedPath, cancellationToken).ConfigureAwait(false))
                 snap = await _mvccXidStore.GetCommittedXidAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
@@ -206,7 +207,8 @@ public sealed class DatabaseEngine : IDatabaseEngine
                 return await ExecuteSelectAsync(resolvedPath, select, null, cancellationToken).ConfigureAwait(false);
 
             await using var _schQ = await _lockManager.AcquireReadLockAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
-            await using var _tblQ = await _lockManager.AcquireTableReadLocksAsync(resolvedPath, new[] { select.TableName }, cancellationToken).ConfigureAwait(false);
+            var qTables = CollectSelectInvolvedTables(select);
+            await using var _tblQ = await _lockManager.AcquireTableReadLocksAsync(resolvedPath, qTables, cancellationToken).ConfigureAwait(false);
             long? snap = null;
             if (await MvccManifest.ReadMvccEnabledAsync(_fs, resolvedPath, cancellationToken).ConfigureAwait(false))
                 snap = await _mvccXidStore.GetCommittedXidAsync(resolvedPath, cancellationToken).ConfigureAwait(false);
@@ -578,6 +580,9 @@ public sealed class DatabaseEngine : IDatabaseEngine
     private async Task<EngineResult> ExecuteSelectAsync(string databasePath, SelectCommand cmd, long? mvccSnapshotCommitted, CancellationToken cancellationToken)
     {
         await EnsureDatabaseExistsAsync(databasePath, cancellationToken).ConfigureAwait(false);
+
+        if (cmd.Extensions != null)
+            return await ExecuteSelectPhase4Async(databasePath, cmd, mvccSnapshotCommitted, cancellationToken).ConfigureAwait(false);
 
         var table = await _schemaStore.ReadSchemaAsync(databasePath, cmd.TableName, cancellationToken).ConfigureAwait(false)
             ?? throw new SchemaException($"Table '{cmd.TableName}' not found");

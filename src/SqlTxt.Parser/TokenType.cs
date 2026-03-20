@@ -13,8 +13,11 @@ public enum TokenType
     LeftParen,
     RightParen,
     Comma,
+    Dot,
     Equals,
     Semicolon,
     Asterisk,
     BracketedIdentifier,
+    GreaterThan,
+    LessThan,
 }

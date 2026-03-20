@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using SqlTxt.Contracts;
 using SqlTxt.Engine;
+using SqlTxt.ManualTests.Diagnostics;
 using SqlTxt.ManualTests.Results;
 
 namespace SqlTxt.ManualTests.Tests;
@@ -43,17 +44,36 @@ public static class HighConcurrencyTest
         var setupMs = 0.0;
 
         insertBatchSize = Math.Clamp(insertBatchSize, 1, 500);
+        var trace = ManualTestRunContext.CurrentOrFallback?.Trace;
+        var storageLabel = storageBackend ?? "text";
+        trace?.SetTestScope("High Concurrency", storageLabel);
+        string? failedStage = null;
+        string? failedStep = null;
+        var wikiDbPath = Path.Combine(dbPath, "WikiDb");
+
         try
         {
-            var setupSw = Stopwatch.StartNew();
-            logger?.Log($"Building WikiDb at {dbPath} (storage: {storageBackend ?? "text"}, insertBatchSize={insertBatchSize})...");
-            await engine.BuildSampleWikiAsync(dbPath, new BuildSampleWikiOptions(Verbose: false, DeleteIfExists: true, StorageBackend: storageBackend), cancellationToken).ConfigureAwait(false);
-            setupSw.Stop();
-            setupMs = setupSw.Elapsed.TotalMilliseconds;
+            using (ManualTestTraceScope.Stage(trace, "Setup"))
+            {
+                failedStage = "Setup";
+                var setupSw = Stopwatch.StartNew();
+                logger?.Log($"Building WikiDb at {dbPath} (storage: {storageLabel}, insertBatchSize={insertBatchSize})...");
+                using (ManualTestTraceScope.Step(trace, "BuildSampleWiki"))
+                {
+                    failedStep = "BuildSampleWiki";
+                    await engine.BuildSampleWikiAsync(dbPath, new BuildSampleWikiOptions(Verbose: false, DeleteIfExists: true, StorageBackend: storageBackend), cancellationToken).ConfigureAwait(false);
+                }
+                setupSw.Stop();
+                setupMs = setupSw.Elapsed.TotalMilliseconds;
+            }
 
-            var wikiDbPath = Path.Combine(dbPath, "WikiDb");
             totalOps = (threads * opsPerThread * 3) + (readerThreads * opsPerThread);
             var tasks = new List<Task>();
+
+            using (ManualTestTraceScope.Stage(trace, "ConcurrentDml"))
+            {
+                failedStage = "ConcurrentDml";
+                failedStep = "SpawnWorkers";
 
             for (var t = 0; t < threads; t++)
             {
@@ -220,16 +240,52 @@ public static class HighConcurrencyTest
                 }, cancellationToken));
             }
 
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+                failedStep = "AwaitWorkers";
+                using (ManualTestTraceScope.Step(trace, "AwaitWorkers", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                       {
+                           ["writerThreads"] = threads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                           ["readerThreads"] = readerThreads.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                       }))
+                    await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
         }
         catch (Exception ex)
         {
             lock (lockObj) { exceptions.Add($"Setup or teardown: {ex.Message}"); }
+            failedStage ??= "Setup";
+            failedStep ??= "BuildSampleWiki";
         }
 
         sw.Stop();
         totalOps = successCount + failureCount;
         var passed = failureCount == 0;
+
+        if (!passed)
+        {
+            var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["databaseRoot"] = Path.GetFullPath(dbPath),
+                ["wikiDbPath"] = Path.GetFullPath(wikiDbPath)
+            };
+            var hints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["threads"] = threads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["opsPerThread"] = opsPerThread.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["readerThreads"] = readerThreads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["failureCount"] = failureCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            };
+            ManualTestFailureSupport.WriteFailureIfEnabled(
+                trace,
+                logger,
+                "High Concurrency",
+                storageLabel,
+                failedStage ?? "ConcurrentDml",
+                failedStep ?? "WorkerTasks",
+                string.Join(Environment.NewLine, exceptions.Take(15)),
+                paths,
+                hints,
+                null);
+        }
 
         var details = new Dictionary<string, object>();
         details["Step_Setup_Ms"] = setupMs;
@@ -273,6 +329,6 @@ public static class HighConcurrencyTest
             failureCount,
             exceptions,
             details,
-            storageBackend ?? "text");
+            storageLabel);
     }
 }

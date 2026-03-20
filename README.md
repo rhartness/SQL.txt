@@ -87,6 +87,7 @@ Omitting `--db` uses `manual-test-artifacts/run-<timestamp>/`. Omitting `--log` 
 - [Architecture](docs/architecture/) — System design and storage format
 - [Sample Wiki Database](docs/samples/wiki-database.md) — Example schema and scripts
 - [Plans](docs/plans/) — Implementation plans ([Phase 4 master](docs/plans/Phase4_Implementation_Plan.md), [Phase 3.5](docs/plans/Phase3_5_Storage_Efficiency_Plan.md), …)
+- **Manual test observability (sub-plans):** [Structured logging & diagnostics](docs/plans/ManualTest_Structured_Logging_And_Diagnostics.md) · [Docs & agent rules](docs/plans/ManualTest_Docs_And_Agent_Rules.md) · [Harness reporting](docs/plans/ManualTest_Harness_Reporting_Integration.md)
 - [SQL:2023 Compliance Roadmap](docs/roadmap/00-sql2023-compliance-roadmap.md) — Full SQL:2023 feature mapping and deferred features
 - [SQL:2023 Feature Registry](docs/roadmap/01-sql2023-feature-registry.md) — Complete feature list with phase assignments and spec references
 
@@ -103,11 +104,12 @@ SQL.txt is built in phases toward **100% SQL:2023 compliance per phase**: start 
 | **Phase 3** | Done | VARCHAR, variable-width fields, storage evolution; SQL:2023 T055/T056/T062/T081 |
 | **In-Memory Data Management** | Done | Index/metadata cache, CachingFileSystemAccessor (LRU), load-into-memory mode (`--memory` / `--persist`) |
 | **Phase 3.5** | Done | Storage & ingest efficiency: true append I/O, batched multi-row INSERT (validation + index writes), sorted on-disk indexes per ADR-008; physical layout may use non-linear structures for speed |
-| **Phase 4** | Next | JOINs, aggregates, ORDER BY, GROUP BY, subqueries; SQL:2023 — [master plan](docs/plans/Phase4_Implementation_Plan.md) (enterprise-grade operators, per-feature sub-plans) |
+| **Phase 4** | In progress (v1 shipped) | **Implemented:** INNER/LEFT JOIN, `AND` equality WHERE, ORDER BY, GROUP BY / HAVING / aggregates, `IN` / `EXISTS` / correlated scalar subqueries ([sub-plans 4.1–4.5](docs/plans/Phase4_Implementation_Plan.md)). **Remaining:** CROSS/FULL OUTER/NATURAL, richer predicates, advanced decorrelation, cost-based operators per [master plan](docs/plans/Phase4_Implementation_Plan.md) |
 | **CTE Phase** | Planned | WITH clause, recursive CTE; SQL:2023 |
 | **Phase 5** | Planned | ALTER TABLE, transactions; SQL:2023 |
 | **Phase 6** | Planned | Views, stored procedures, functions; SQL:2023 |
 | **Phase 7** | Planned | Statistics (CREATE STATISTICS, histograms) |
+| **Manual test observability** | Planned (see [sub-plans](docs/plans/ManualTest_Structured_Logging_And_Diagnostics.md)) | Structured trace/failure bundles for manual tests, deficits vs LocalDB/future comparators, JSONL diagnostics, AGENTS/docs alignment |
 
 ## License
 

@@ -23,11 +23,11 @@ This document is the comprehensive reference for all SQL:2023 features from ISO/
 | Core | FOREIGN KEY constraint | 2 | Done | Clause 11 |
 | Core | UNIQUE constraint | 2 | Done | Clause 11 |
 | Core | NULL / NOT NULL | 1 | Done | Clause 11 |
-| Core | Aggregates (COUNT, SUM, AVG, MIN, MAX) | 4 | Planned | Clause 9 (Expressions) |
-| Core | ORDER BY | 4 | Planned | Clause 7 |
-| Core | GROUP BY | 4 | Planned | Clause 7 |
-| Core | HAVING | 4 | Planned | Clause 7 |
-| Core | Subqueries (IN, EXISTS, scalar) | 4 | Planned | Clause 7 |
+| Core | Aggregates (COUNT, SUM, AVG, MIN, MAX) | 4 | Done (v1) | Clause 9 (Expressions). *With `GROUP BY`; single-table and simple joins.* |
+| Core | ORDER BY | 4 | Done (v1) | Clause 7. *Multi-key ASC/DESC; sort on select list / bound columns.* |
+| Core | GROUP BY | 4 | Done (v1) | Clause 7 |
+| Core | HAVING | 4 | Done (v1) | Clause 7. *Single aggregate vs literal (`>`, `<`, `=`).* |
+| Core | Subqueries (IN, EXISTS, scalar) | 4 | Done (v1) | Clause 7. *Uncorrelated `IN (subquery)`; correlated `EXISTS`; correlated scalar aggregate subquery in select list.* |
 | Core | CREATE VIEW | 6 | Planned | Clause 4 |
 | Core | CREATE PROCEDURE | 6 | Planned | Clause 11 (Routines) |
 | Core | CREATE FUNCTION | 6 | Planned | Clause 11 |
@@ -71,7 +71,7 @@ This document is the comprehensive reference for all SQL:2023 features from ISO/
 
 | Feature ID | Name | Phase | Status | Spec Reference |
 |------------|------|-------|--------|----------------|
-| F401 | JOIN (INNER, LEFT OUTER) | 4 | Planned | Clause 7 |
+| F401 | JOIN (INNER, LEFT OUTER) | 4 | Done (v1) | Clause 7. *Nested-loop; equi-`ON`; table aliases.* |
 | F405 | NATURAL JOIN | 4 | Planned | Clause 7 |
 | F406 | FULL OUTER JOIN | 4 | Planned | Clause 7 |
 | F407 | CROSS JOIN | 4 | Planned | Clause 7 |

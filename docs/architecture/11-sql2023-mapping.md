@@ -61,16 +61,20 @@ Not a separate SQL:2023 clause; implementation milestone before Phase 4. See [Ph
 
 | Feature | SQL:2023 ID | Notes |
 |---------|--------------|-------|
-| INNER JOIN | F401 (JOIN) | Two-table initially |
-| LEFT OUTER JOIN | F401 | |
+| INNER JOIN | F401 (JOIN) | **Done (v1):** equi-join `ON`, aliases, nested-loop execution |
+| LEFT OUTER JOIN | F401 | **Done (v1):** as above |
 | FULL OUTER JOIN | F406 | Optional |
 | CROSS JOIN | F407 | |
 | NATURAL JOIN | F405 | Optional |
-| Aggregates | Core | COUNT, SUM, AVG, MIN, MAX |
-| ORDER BY | Core | Sort specification |
-| GROUP BY | Core | Grouping |
-| HAVING | Core | Group filter |
-| Subqueries | Core | IN, EXISTS, scalar |
+| Aggregates | Core | **Done (v1):** `COUNT(*)`, `COUNT(col)`, `SUM`, `AVG`, `MIN`, `MAX` with `GROUP BY` |
+| ORDER BY | Core | **Done (v1):** multi-key ASC/DESC |
+| GROUP BY | Core | **Done (v1)** |
+| HAVING | Core | **Done (v1):** one aggregate vs literal |
+| Subqueries | Core | **Done (v1):** `IN (SELECT …)`, `EXISTS (…)`, scalar `(SELECT AGG … WHERE corr)` |
+| Compound WHERE | Core | **Done (v1):** `AND` of equality predicates; qualified columns |
+| SELECT list | Core | **Done (v1):** `AS` aliases; `SELECT *` with Phase 4 clauses |
+
+**Not yet (still Phase 4 roadmap):** CROSS / FULL OUTER / NATURAL JOIN, `OR`/non-equality WHERE richness, decorrelation beyond current correlated patterns, hash join / external sort (see [Phase4_Implementation_Plan.md](../plans/Phase4_Implementation_Plan.md)).
 
 ## CTE Phase — Common Table Expressions
 

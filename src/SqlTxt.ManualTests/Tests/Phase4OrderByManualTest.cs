@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Linq;
 using SqlTxt.Engine;
+using SqlTxt.ManualTests.Diagnostics;
 using SqlTxt.ManualTests.Results;
 
 namespace SqlTxt.ManualTests.Tests;
@@ -20,56 +21,77 @@ public static class Phase4OrderByManualTest
         var engine = new DatabaseEngine();
         var dbName = "Phase4OrderByDb";
         var wikiPath = Path.Combine(dbPath, dbName);
+        var trace = ManualTestRunContext.CurrentOrFallback?.Trace;
+        var storageLabel = storageBackend ?? "text";
+        trace?.SetTestScope("Phase4 order by", storageLabel);
 
         try
         {
-            if (Directory.Exists(wikiPath))
-                Directory.Delete(wikiPath, recursive: true);
-
-            var createDb = storageBackend is "binary"
-                ? $"CREATE DATABASE {dbName} WITH (storageBackend=binary)"
-                : $"CREATE DATABASE {dbName}";
-            await engine.ExecuteAsync(createDb, dbPath, cancellationToken).ConfigureAwait(false);
-
-            await engine.ExecuteAsync(
-                "CREATE TABLE R (Id CHAR(5) PRIMARY KEY, SortKey CHAR(10))",
-                wikiPath, cancellationToken).ConfigureAwait(false);
-            await engine.ExecuteAsync(
-                "INSERT INTO R (Id, SortKey) VALUES ('3', 'c'), ('1', 'a'), ('2', 'b')",
-                wikiPath, cancellationToken).ConfigureAwait(false);
-
-            var q = await engine.ExecuteQueryAsync(
-                "SELECT Id FROM R ORDER BY SortKey ASC, Id ASC",
-                wikiPath,
-                cancellationToken).ConfigureAwait(false);
-            var rows = q.QueryResult?.Rows;
-            if (rows is null || rows.Count != 3)
-                return Phase4ManualTestHelper.Failed(
-                    "Phase4 order by",
-                    new InvalidOperationException($"Expected 3 rows, got {rows?.Count ?? 0}"),
-                    sw,
-                    storageBackend ?? "text");
-
-            var ids = rows.Select(r => r.GetValue("Id")).ToList();
-            if (ids[0] != "1" || ids[1] != "2" || ids[2] != "3")
+            using (ManualTestTraceScope.Stage(trace, "Setup"))
             {
-                // Insert order was 3,1,2; without ORDER BY the engine typically returns that order.
-                if (ids.Count == 3 && ids[0] == "3" && ids[1] == "1" && ids[2] == "2")
-                {
-                    sw.Stop();
-                    logger?.Log("Phase4 order by: skipped (ORDER BY not applied — pre-Phase-4 parser)");
-                    return Phase4ManualTestHelper.Skipped(
-                        "Phase4 order by",
-                        "Phase 4.3 ORDER BY not in effect yet.",
-                        sw,
-                        storageBackend ?? "text");
-                }
+                if (Directory.Exists(wikiPath))
+                    Directory.Delete(wikiPath, recursive: true);
 
-                return Phase4ManualTestHelper.Failed(
-                    "Phase4 order by",
-                    new InvalidOperationException($"Expected order 1,2,3 got {string.Join(",", ids)}"),
-                    sw,
-                    storageBackend ?? "text");
+                var createDb = storageBackend is "binary"
+                    ? $"CREATE DATABASE {dbName} WITH (storageBackend=binary)"
+                    : $"CREATE DATABASE {dbName}";
+                await engine.ExecuteAsync(createDb, dbPath, cancellationToken).ConfigureAwait(false);
+
+                await engine.ExecuteAsync(
+                    "CREATE TABLE R (Id CHAR(5) PRIMARY KEY, SortKey CHAR(10))",
+                    wikiPath, cancellationToken).ConfigureAwait(false);
+                await engine.ExecuteAsync(
+                    "INSERT INTO R (Id, SortKey) VALUES ('3', 'c'), ('1', 'a'), ('2', 'b')",
+                    wikiPath, cancellationToken).ConfigureAwait(false);
+            }
+
+            using (ManualTestTraceScope.Stage(trace, "Query"))
+            {
+                const string orderSql = "SELECT Id FROM R ORDER BY SortKey ASC, Id ASC";
+                var q = await engine.ExecuteQueryAsync(
+                    orderSql,
+                    wikiPath,
+                    cancellationToken).ConfigureAwait(false);
+                var rows = q.QueryResult?.Rows;
+                if (rows is null || rows.Count != 3)
+                    return Phase4ManualTestHelper.Failed(
+                        "Phase4 order by",
+                        new InvalidOperationException($"Expected 3 rows, got {rows?.Count ?? 0}"),
+                        sw,
+                        storageLabel,
+                        trace,
+                        logger,
+                        "Query",
+                        "OrderBySelect",
+                        wikiPath,
+                        orderSql);
+
+                var ids = rows.Select(r => r.GetValue("Id")).ToList();
+                if (ids[0] != "1" || ids[1] != "2" || ids[2] != "3")
+                {
+                    if (ids.Count == 3 && ids[0] == "3" && ids[1] == "1" && ids[2] == "2")
+                    {
+                        sw.Stop();
+                        logger?.Log("Phase4 order by: skipped (ORDER BY not applied — pre-Phase-4 parser)");
+                        return Phase4ManualTestHelper.Skipped(
+                            "Phase4 order by",
+                            "Phase 4.3 ORDER BY not in effect yet.",
+                            sw,
+                            storageLabel);
+                    }
+
+                    return Phase4ManualTestHelper.Failed(
+                        "Phase4 order by",
+                        new InvalidOperationException($"Expected order 1,2,3 got {string.Join(",", ids)}"),
+                        sw,
+                        storageLabel,
+                        trace,
+                        logger,
+                        "Query",
+                        "ValidateOrder",
+                        wikiPath,
+                        orderSql);
+                }
             }
 
             sw.Stop();
@@ -82,7 +104,7 @@ public static class Phase4OrderByManualTest
                 0,
                 Array.Empty<string>(),
                 new Dictionary<string, object> { ["OrderedIds"] = "1,2,3" },
-                storageBackend ?? "text");
+                storageLabel);
         }
         catch (Exception ex) when (Phase4ManualTestHelper.ShouldSkipAsNotImplemented(ex))
         {
@@ -92,12 +114,22 @@ public static class Phase4OrderByManualTest
                 "Phase4 order by",
                 "Phase 4.3 ORDER BY not implemented yet.",
                 sw,
-                storageBackend ?? "text");
+                storageLabel);
         }
         catch (Exception ex)
         {
             sw.Stop();
-            return Phase4ManualTestHelper.Failed("Phase4 order by", ex, sw, storageBackend ?? "text");
+            return Phase4ManualTestHelper.Failed(
+                "Phase4 order by",
+                ex,
+                sw,
+                storageLabel,
+                trace,
+                logger,
+                "Execute",
+                "Unhandled",
+                wikiPath,
+                null);
         }
     }
 }

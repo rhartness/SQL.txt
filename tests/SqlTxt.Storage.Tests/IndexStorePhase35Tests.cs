@@ -36,6 +36,27 @@ public class IndexStorePhase35Tests
         Assert.Equal(2L, ids[0]);
     }
 
+    /// <summary>
+    /// Keys must be ordered by index key prefix, not by full line: e.g. "100|..." must sort after "10|..." for binary search.
+    /// </summary>
+    [Fact]
+    public async Task AddIndexEntriesAsync_NumericStringKeys_LookupFinds100()
+    {
+        var db = "D";
+        var table = "T";
+        await _store.CreateIndexAsync(db, table, "_PK");
+        await _store.AddIndexEntriesAsync(db, table, "_PK", new[]
+        {
+            new IndexEntry("100", 100, 0),
+            new IndexEntry("10", 10, 0),
+            new IndexEntry("99", 99, 0),
+        });
+
+        var ids = await _store.LookupByValueAsync(db, table, "_PK", "100");
+        Assert.Single(ids);
+        Assert.Equal(100L, ids[0]);
+    }
+
     [Fact]
     public async Task ReadAllKeyPrefixesAsync_ReturnsDistinctKeys()
     {

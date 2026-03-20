@@ -50,9 +50,14 @@ When generating plan documents, consider asking: "Do you want specific manual te
 - **Tests:** `concurrency`, `sharding`, `sharding-varchar`, `all`, plus Phase 4 feature tests: `phase4-bind-expr`, `phase4-joins`, `phase4-orderby`, `phase4-groupby`, `phase4-subqueries`, `phase4-all` (see [Phase4_Implementation_Plan.md](docs/plans/Phase4_Implementation_Plan.md))
 - **Defaults:** Use the repo’s **`manual-test-artifacts/`** tree — omit `--db` to get `manual-test-artifacts/run-<timestamp>/`; omit `--log` for `manual-test-artifacts/logs/ManualTests_<timestamp>.log`. Do **not** use `--db .` at the repo root for agent runs.
 - **Retention:** Default **`--save-db` is off** — the run directory (or `WikiDb` / `VarcharShardingDb` / `ManualTest_*` under an explicit `--db`) is deleted after the run. Pass **`--save-db`** to keep databases for inspection.
-- **Command:** `dotnet run --project src/SqlTxt.ManualTests -- <test> [--storage all] [--save-db]`
+- **Command:** `dotnet run --project src/SqlTxt.ManualTests -- <test> [--storage all] [--save-db] [--diagnostics]`  
+  Companion report: `manual-test-artifacts/logs/ManualTests_<timestamp>.errors-and-comparison.md` (`#failures`, `#vs-localdb`, `#slower-than-localdb`, `#deficits`). Optional **`--diagnostics`** writes `ManualTests_<timestamp>.diagnostics.jsonl` and correlates via **RunId** in the log. Failed tests may emit **`ManualTests_<timestamp>.failure-bundle.json`**. Optional `--require-beat-localdb` fails the run when passing SqlTxt text/binary is slower than LocalDB for the same test; optional `--fail-on-deficit-ratio` fails on SqlTxt vs baseline duration ratios (see `#deficits` in the secondary report).
+- **`all`:** Runs every registered manual scenario (legacy + Phase 4 + future catalog entries), each expanded per storage options below.
+- **`--storage all`:** Runs **SQL.txt text**, **SQL.txt binary**, and **LocalDB** for every scenario that has a LocalDB runner; LocalDB is **not** duplicated if `--compare:localdb` is also passed.
+- **`--compare:localdb`:** When storage is `text` or `binary` only, adds LocalDB runs; redundant with `--storage all`.
+- **LocalDB gaps:** If SQL.txt has no SQL Server–expressible counterpart for a manual scenario, return a skipped result with a reason (see `src/SqlTxt.ManualTests/README.md`).
+- **Concurrency vs LocalDB:** Manual **High Concurrency** is a correctness/behavior parity check, not a throughput SLA. Large `#deficits` ratios vs LocalDB are **informational** unless maintainers opt into `--require-beat-localdb` / `--fail-on-deficit-ratio`. See `src/SqlTxt.ManualTests/README.md` (SqlTxt vs LocalDB interpretation).
 - **Prompt:** "Do you want specific manual tests generated for this feature?" when adding storage/sharding/concurrency features or **any major engine feature** (JOINs, aggregates, sort, subqueries, etc.).
-- **`--compare:localdb`:** Ignored for `phase4-*` manual tests; do not assume LocalDB comparison runs for features LocalDB is not being used to validate.
 
 ## Efficiency Requirements (Knuth-Style)
 

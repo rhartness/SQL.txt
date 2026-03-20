@@ -52,7 +52,7 @@ public sealed class IndexStore : IIndexStore
         foreach (var e in entries)
             lines.Add(FormatEntryLine(e));
 
-        SortIndexLines(lines);
+        SortIndexLinesByKey(lines);
         await WriteSortedAtomicAsync(path, lines, cancellationToken).ConfigureAwait(false);
     }
 
@@ -83,7 +83,7 @@ public sealed class IndexStore : IIndexStore
         var prefix = keyValue + "|";
         var kept = lines.Where(l => !l.StartsWith(prefix, StringComparison.Ordinal)).ToList();
 
-        SortIndexLines(kept);
+        SortIndexLinesByKey(kept);
         await WriteSortedAtomicAsync(path, kept, cancellationToken).ConfigureAwait(false);
     }
 
@@ -107,7 +107,7 @@ public sealed class IndexStore : IIndexStore
             return keyPart != keyValue || lastPart != rowIdStr;
         }).ToList();
 
-        SortIndexLines(kept);
+        SortIndexLinesByKey(kept);
         await WriteSortedAtomicAsync(path, kept, cancellationToken).ConfigureAwait(false);
     }
 
@@ -150,7 +150,7 @@ public sealed class IndexStore : IIndexStore
             lines.Add(FormatEntryLine(new IndexEntry(key, rowId, shardId)));
         }
 
-        SortIndexLines(lines);
+        SortIndexLinesByKey(lines);
         await WriteSortedAtomicAsync(path, lines, cancellationToken).ConfigureAwait(false);
     }
 
@@ -189,14 +189,26 @@ public sealed class IndexStore : IIndexStore
         return true;
     }
 
-    private static void SortIndexLines(List<string> lines) =>
-        lines.Sort(StringComparer.Ordinal);
+    /// <summary>
+    /// Sorts index file lines by leading key (before first '|'); tie-break on full line.
+    /// Lexicographic sort on the full line is incorrect for binary search (e.g. key "100|" sorts before "10|" by character).
+    /// </summary>
+    internal static void SortIndexLinesByKey(List<string> lines)
+    {
+        lines.Sort(static (a, b) =>
+        {
+            var ka = GetKeyPart(a);
+            var kb = GetKeyPart(b);
+            var c = string.Compare(ka, kb, StringComparison.Ordinal);
+            return c != 0 ? c : string.Compare(a, b, StringComparison.Ordinal);
+        });
+    }
 
     private async Task EnsureSortedOnDiskAsync(string path, List<string> lines, CancellationToken cancellationToken)
     {
         if (lines.Count <= 1 || IsSortedByKey(lines))
             return;
-        SortIndexLines(lines);
+        SortIndexLinesByKey(lines);
         await WriteSortedAtomicAsync(path, lines, cancellationToken).ConfigureAwait(false);
     }
 

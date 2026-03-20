@@ -87,7 +87,7 @@ public sealed class CachingIndexStore : IIndexStore
             .Where(l => !string.IsNullOrWhiteSpace(l))
             .Select(l => l.TrimEnd())
             .ToList();
-        lines.Sort(StringComparer.Ordinal);
+        IndexStore.SortIndexLinesByKey(lines);
 
         lock (lockObj)
         {

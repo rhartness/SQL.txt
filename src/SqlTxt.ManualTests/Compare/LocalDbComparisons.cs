@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Data.SqlClient;
+using SqlTxt.ManualTests.Diagnostics;
 using SqlTxt.ManualTests.Results;
 
 namespace SqlTxt.ManualTests.Compare;
@@ -9,7 +10,7 @@ namespace SqlTxt.ManualTests.Compare;
 /// Runs manual test equivalents against SQL Server LocalDB for comparison with SQL.txt.
 /// Uses default LocalDB instance; no connection config required.
 /// </summary>
-public static class LocalDbComparisons
+public static partial class LocalDbComparisons
 {
     private const string LocalDbMaster = "Server=(localdb)\\MSSQLLocalDB;Database=master;Integrated Security=True;TrustServerCertificate=True;";
 
@@ -36,28 +37,39 @@ public static class LocalDbComparisons
         var deleteTicks = new ConcurrentBag<long>();
         var selectTicks = new ConcurrentBag<long>();
         var setupMs = 0.0;
+        var trace = ManualTestRunContext.CurrentOrFallback?.Trace;
+        trace?.SetTestScope("High Concurrency", "localdb");
+        string? failedStage = null;
+        string? failedStep = null;
 
         try
         {
-            var setupSw = Stopwatch.StartNew();
-            logger?.Log($"LocalDB comparison: Creating database {dbName}...");
-
-            await using (var masterConn = new SqlConnection(LocalDbMaster))
+            var connStr =
+                $"Server=(localdb)\\MSSQLLocalDB;Database={dbName};Integrated Security=True;TrustServerCertificate=True;";
+            using (ManualTestTraceScope.Stage(trace, "Setup"))
             {
-                await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
-                using (var cmd = masterConn.CreateCommand())
+                failedStage = "Setup";
+                var setupSw = Stopwatch.StartNew();
+                logger?.Log($"LocalDB comparison: Creating database {dbName}...");
+
+                using (ManualTestTraceScope.Step(trace, "LocalDbCreateAndSchema"))
                 {
-                    cmd.CommandText = $"CREATE DATABASE [{dbName}]";
-                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                }
-            }
+                    failedStep = "LocalDbCreateAndSchema";
+                    await using (var masterConn = new SqlConnection(LocalDbMaster))
+                    {
+                        await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                        using (var cmd = masterConn.CreateCommand())
+                        {
+                            cmd.CommandText = $"CREATE DATABASE [{dbName}]";
+                            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                    }
 
-            var connStr = $"Server=(localdb)\\MSSQLLocalDB;Database={dbName};Integrated Security=True;TrustServerCertificate=True;";
-            await using var conn = new SqlConnection(connStr);
-            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                    await using var conn = new SqlConnection(connStr);
+                    await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-            // Schema: User, Page, PageContent (SQL Server uses brackets for reserved words)
-            await ExecuteNonQueryAsync(conn, @"
+                    // Schema: User, Page, PageContent (SQL Server uses brackets for reserved words)
+                    await ExecuteNonQueryAsync(conn, @"
                 CREATE TABLE [User] (Id CHAR(10) PRIMARY KEY, Username CHAR(50), Email CHAR(100), CreatedAt CHAR(24));
                 CREATE TABLE [Page] (Id CHAR(10) PRIMARY KEY, Title CHAR(200), Slug CHAR(200), CreatedById CHAR(10), CreatedAt CHAR(24), UpdatedAt CHAR(24), FOREIGN KEY (CreatedById) REFERENCES [User](Id));
                 CREATE TABLE PageContent (Id CHAR(10) PRIMARY KEY, PageId CHAR(10), Content NVARCHAR(5000), Version INT, CreatedById CHAR(10), CreatedAt CHAR(24), FOREIGN KEY (PageId) REFERENCES [Page](Id), FOREIGN KEY (CreatedById) REFERENCES [User](Id));
@@ -65,12 +77,19 @@ public static class LocalDbComparisons
                 INSERT INTO [Page] (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES ('1', 'Home', 'home', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z');
                 INSERT INTO PageContent (Id, PageId, Content, Version, CreatedById, CreatedAt) VALUES ('1', '1', 'Welcome', 1, '1', '2026-03-17T12:00:00Z');
             ", cancellationToken).ConfigureAwait(false);
+                }
 
-            setupSw.Stop();
-            setupMs = setupSw.Elapsed.TotalMilliseconds;
+                setupSw.Stop();
+                setupMs = setupSw.Elapsed.TotalMilliseconds;
+            }
 
             totalOps = (threads * opsPerThread * 3) + (readerThreads * opsPerThread);
             var tasks = new List<Task>();
+
+            using (ManualTestTraceScope.Stage(trace, "ConcurrentDml"))
+            {
+                failedStage = "ConcurrentDml";
+                failedStep = "SpawnWorkers";
 
             for (var t = 0; t < threads; t++)
             {
@@ -220,22 +239,36 @@ public static class LocalDbComparisons
                 }, cancellationToken));
             }
 
-            await Task.WhenAll(tasks).ConfigureAwait(false);
+                failedStep = "AwaitWorkers";
+                using (ManualTestTraceScope.Step(trace, "AwaitWorkers", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                       {
+                           ["writerThreads"] = threads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                           ["readerThreads"] = readerThreads.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                       }))
+                    await Task.WhenAll(tasks).ConfigureAwait(false);
+            }
 
-            // Drop database
-            await using (var masterConn = new SqlConnection(LocalDbMaster))
+            using (ManualTestTraceScope.Stage(trace, "Teardown"))
             {
-                await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
-                using (var cmd = masterConn.CreateCommand())
+                failedStage = "Teardown";
+                failedStep = "DropDatabase";
+                // Drop database
+                await using (var masterConn = new SqlConnection(LocalDbMaster))
                 {
-                    cmd.CommandText = $"ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{dbName}]";
-                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                    using (var cmd = masterConn.CreateCommand())
+                    {
+                        cmd.CommandText = $"ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{dbName}]";
+                        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    }
                 }
             }
         }
         catch (Exception ex)
         {
             lock (lockObj) exceptions.Add($"Setup or teardown: {ex.Message}");
+            failedStage ??= "Setup";
+            failedStep ??= "LocalDbCreateAndSchema";
         }
 
         sw.Stop();
@@ -269,6 +302,32 @@ public static class LocalDbComparisons
             details["Avg_Select_Ms"] = selectTicks.Average() * 1000.0 / Stopwatch.Frequency;
         }
 
+        if (!passed)
+        {
+            var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["localDbDatabase"] = dbName
+            };
+            var hints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["threads"] = threads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["opsPerThread"] = opsPerThread.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["readerThreads"] = readerThreads.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["failureCount"] = failureCount.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            };
+            ManualTestFailureSupport.WriteFailureIfEnabled(
+                trace,
+                logger,
+                "High Concurrency",
+                "localdb",
+                failedStage ?? "ConcurrentDml",
+                failedStep ?? "WorkerTasks",
+                string.Join(Environment.NewLine, exceptions.Take(15)),
+                paths,
+                hints,
+                null);
+        }
+
         return new TestResult(
             "High Concurrency",
             passed,
@@ -295,27 +354,37 @@ public static class LocalDbComparisons
         var sw = Stopwatch.StartNew();
         var exceptions = new List<string>();
         var details = new Dictionary<string, object>();
+        var trace = ManualTestRunContext.CurrentOrFallback?.Trace;
+        trace?.SetTestScope("Sharding", "localdb");
+        string? failedStage = null;
+        string? failedStep = null;
 
         try
         {
-            var setupSw = Stopwatch.StartNew();
-            logger?.Log($"LocalDB comparison: Creating database {dbName} with Page table...");
-
-            await using (var masterConn = new SqlConnection(LocalDbMaster))
+            using (ManualTestTraceScope.Stage(trace, "Setup"))
             {
-                await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
-                using (var cmd = masterConn.CreateCommand())
+                failedStage = "Setup";
+                var setupSw = Stopwatch.StartNew();
+                logger?.Log($"LocalDB comparison: Creating database {dbName} with Page table...");
+
+                using (ManualTestTraceScope.Step(trace, "CreateDatabaseAndSchema"))
                 {
-                    cmd.CommandText = $"CREATE DATABASE [{dbName}]";
-                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-                }
-            }
+                    failedStep = "CreateDatabaseAndSchema";
+                    await using (var masterConn = new SqlConnection(LocalDbMaster))
+                    {
+                        await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                        using (var cmd = masterConn.CreateCommand())
+                        {
+                            cmd.CommandText = $"CREATE DATABASE [{dbName}]";
+                            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                    }
 
-            var connStr = $"Server=(localdb)\\MSSQLLocalDB;Database={dbName};Integrated Security=True;TrustServerCertificate=True;";
-            await using var conn = new SqlConnection(connStr);
-            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                    var connStr = $"Server=(localdb)\\MSSQLLocalDB;Database={dbName};Integrated Security=True;TrustServerCertificate=True;";
+                    await using var conn = new SqlConnection(connStr);
+                    await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-            await ExecuteNonQueryAsync(conn, @"
+                    await ExecuteNonQueryAsync(conn, @"
                 CREATE TABLE [User] (Id CHAR(10) PRIMARY KEY, Username CHAR(50), Email CHAR(100), CreatedAt CHAR(24));
                 CREATE TABLE [Page] (Id CHAR(10) PRIMARY KEY, Title CHAR(200), Slug CHAR(200), CreatedById CHAR(10), CreatedAt CHAR(24), UpdatedAt CHAR(24), FOREIGN KEY (CreatedById) REFERENCES [User](Id));
                 CREATE INDEX IX_Page_Slug ON [Page](Slug);
@@ -323,60 +392,120 @@ public static class LocalDbComparisons
                 INSERT INTO [User] (Id, Username, Email, CreatedAt) VALUES ('1', 'admin', 'admin@wiki.local', '2026-03-17T12:00:00Z');
             ", cancellationToken).ConfigureAwait(false);
 
-            setupSw.Stop();
-            details["Step_Setup_Ms"] = setupSw.Elapsed.TotalMilliseconds;
+                    setupSw.Stop();
+                    details["Step_Setup_Ms"] = setupSw.Elapsed.TotalMilliseconds;
 
-            logger?.Log($"LocalDB: Inserting {rowCount} Page rows (batch INSERT)...");
-            var insertSw = Stopwatch.StartNew();
-            var values = string.Join(", ", Enumerable.Range(0, rowCount).Select(i =>
-                $"('{i}', 'Page {i}', 'page-{i}', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')"));
-            await ExecuteNonQueryAsync(conn, $"INSERT INTO [Page] (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES {values}", cancellationToken).ConfigureAwait(false);
-            insertSw.Stop();
-            var insertMs = insertSw.Elapsed.TotalMilliseconds;
-            details["Step_Insert_Ms"] = insertMs;
-            details["Step_Insert_Count"] = rowCount;
-            details["Avg_Insert_Ms"] = rowCount > 0 ? insertMs / rowCount : 0;
-            details["ShardCount"] = 0; // LocalDB has no sharding
-            details["RowCount"] = rowCount;
+                    logger?.Log($"LocalDB: Inserting {rowCount} Page rows (batch INSERT)...");
+                    var insertSw = Stopwatch.StartNew();
+                    var values = string.Join(", ", Enumerable.Range(0, rowCount).Select(i =>
+                        $"('{i}', 'Page {i}', 'page-{i}', '1', '2026-03-17T12:00:00Z', '2026-03-17T12:00:00Z')"));
+                    using (ManualTestTraceScope.Step(trace, "BatchInsert", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                           { ["rowCount"] = rowCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
+                    {
+                        failedStep = "BatchInsert";
+                        await ExecuteNonQueryAsync(conn,
+                            $"INSERT INTO [Page] (Id, Title, Slug, CreatedById, CreatedAt, UpdatedAt) VALUES {values}",
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    insertSw.Stop();
+                    var insertMs = insertSw.Elapsed.TotalMilliseconds;
+                    details["Step_Insert_Ms"] = insertMs;
+                    details["Step_Insert_Count"] = rowCount;
+                    details["Avg_Insert_Ms"] = rowCount > 0 ? insertMs / rowCount : 0;
+                    details["ShardCount"] = 0; // LocalDB has no sharding
+                    details["RowCount"] = rowCount;
 
-            var q1Sw = Stopwatch.StartNew();
-            await ExecuteReaderAsync(conn, "SELECT * FROM [Page]", cancellationToken).ConfigureAwait(false);
-            q1Sw.Stop();
-            details["Step_Query_FullScan_Ms"] = q1Sw.Elapsed.TotalMilliseconds;
+                    using (ManualTestTraceScope.Stage(trace, "Query"))
+                    {
+                        failedStage = "Query";
+                        var q1Sw = Stopwatch.StartNew();
+                        using (ManualTestTraceScope.Step(trace, "QueryFullScan"))
+                        {
+                            failedStep = "QueryFullScan";
+                            await ExecuteReaderAsync(conn, "SELECT * FROM [Page]", cancellationToken).ConfigureAwait(false);
+                        }
+                        q1Sw.Stop();
+                        details["Step_Query_FullScan_Ms"] = q1Sw.Elapsed.TotalMilliseconds;
 
-            var midId = rowCount / 2;
-            var q2Sw = Stopwatch.StartNew();
-            await ExecuteReaderAsync(conn, $"SELECT * FROM [Page] WHERE Id = '{midId}'", cancellationToken).ConfigureAwait(false);
-            q2Sw.Stop();
-            details["Step_Query_ById_Ms"] = q2Sw.Elapsed.TotalMilliseconds;
+                        var midId = rowCount / 2;
+                        var q2Sw = Stopwatch.StartNew();
+                        using (ManualTestTraceScope.Step(trace, "QueryPkLookup"))
+                        {
+                            failedStep = "QueryPkLookup";
+                            await ExecuteReaderAsync(conn, $"SELECT * FROM [Page] WHERE Id = '{midId}'", cancellationToken).ConfigureAwait(false);
+                        }
+                        q2Sw.Stop();
+                        details["Step_Query_ById_Ms"] = q2Sw.Elapsed.TotalMilliseconds;
 
-            var midSlug = rowCount / 2;
-            var q3Sw = Stopwatch.StartNew();
-            await ExecuteReaderAsync(conn, $"SELECT * FROM [Page] WHERE Slug = 'page-{midSlug}'", cancellationToken).ConfigureAwait(false);
-            q3Sw.Stop();
-            details["Step_Query_BySlug_Ms"] = q3Sw.Elapsed.TotalMilliseconds;
+                        var midSlug = rowCount / 2;
+                        var q3Sw = Stopwatch.StartNew();
+                        using (ManualTestTraceScope.Step(trace, "QueryBySlugIndex"))
+                        {
+                            failedStep = "QueryBySlugIndex";
+                            await ExecuteReaderAsync(conn, $"SELECT * FROM [Page] WHERE Slug = 'page-{midSlug}'", cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        q3Sw.Stop();
+                        details["Step_Query_BySlug_Ms"] = q3Sw.Elapsed.TotalMilliseconds;
 
-            var q4Sw = Stopwatch.StartNew();
-            await ExecuteReaderAsync(conn, "SELECT * FROM [Page] WHERE CreatedById = '1'", cancellationToken).ConfigureAwait(false);
-            q4Sw.Stop();
-            details["Step_Query_ByGroup_Ms"] = q4Sw.Elapsed.TotalMilliseconds;
+                        var q4Sw = Stopwatch.StartNew();
+                        using (ManualTestTraceScope.Step(trace, "QueryByCreatedByIdIndex"))
+                        {
+                            failedStep = "QueryByCreatedByIdIndex";
+                            await ExecuteReaderAsync(conn, "SELECT * FROM [Page] WHERE CreatedById = '1'", cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        q4Sw.Stop();
+                        details["Step_Query_ByGroup_Ms"] = q4Sw.Elapsed.TotalMilliseconds;
+                    }
+                }
+            }
 
-            await using (var masterConn = new SqlConnection(LocalDbMaster))
+            using (ManualTestTraceScope.Stage(trace, "Teardown"))
             {
-                await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
-                using (var cmd = masterConn.CreateCommand())
+                failedStage = "Teardown";
+                failedStep = "DropDatabase";
+                await using (var masterConn = new SqlConnection(LocalDbMaster))
                 {
-                    cmd.CommandText = $"ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{dbName}]";
-                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                    using (var cmd = masterConn.CreateCommand())
+                    {
+                        cmd.CommandText =
+                            $"ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{dbName}]";
+                        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    }
                 }
             }
         }
         catch (Exception ex)
         {
             exceptions.Add(ex.ToString());
+            failedStage ??= "Setup";
+            failedStep ??= "CreateDatabaseAndSchema";
         }
 
         sw.Stop();
+
+        if (exceptions.Count > 0)
+        {
+            var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["localDbDatabase"] = dbName };
+            var hints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["rowCount"] = rowCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["desiredShards"] = desiredShards.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            };
+            ManualTestFailureSupport.WriteFailureIfEnabled(
+                trace,
+                logger,
+                "Sharding",
+                "localdb",
+                failedStage,
+                failedStep,
+                string.Join(Environment.NewLine, exceptions),
+                paths,
+                hints,
+                null);
+        }
 
         return new TestResult(
             "Sharding",
@@ -404,85 +533,152 @@ public static class LocalDbComparisons
         var sw = Stopwatch.StartNew();
         var exceptions = new List<string>();
         var details = new Dictionary<string, object>();
+        var trace = ManualTestRunContext.CurrentOrFallback?.Trace;
+        trace?.SetTestScope("Sharding (VARCHAR)", "localdb");
+        string? failedStage = null;
+        string? failedStep = null;
 
         try
         {
-            var setupSw = Stopwatch.StartNew();
-            logger?.Log($"LocalDB comparison: Creating database {dbName} with Notes table (VARCHAR)...");
-
-            await using (var masterConn = new SqlConnection(LocalDbMaster))
+            using (ManualTestTraceScope.Stage(trace, "Setup"))
             {
-                await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
-                using (var cmd = masterConn.CreateCommand())
+                failedStage = "Setup";
+                var setupSw = Stopwatch.StartNew();
+                logger?.Log($"LocalDB comparison: Creating database {dbName} with Notes table (VARCHAR)...");
+
+                using (ManualTestTraceScope.Step(trace, "CreateDatabaseAndTable"))
                 {
-                    cmd.CommandText = $"CREATE DATABASE [{dbName}]";
-                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    failedStep = "CreateDatabaseAndTable";
+                    await using (var masterConn = new SqlConnection(LocalDbMaster))
+                    {
+                        await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                        using (var cmd = masterConn.CreateCommand())
+                        {
+                            cmd.CommandText = $"CREATE DATABASE [{dbName}]";
+                            await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                        }
+                    }
+
+                    var connStr =
+                        $"Server=(localdb)\\MSSQLLocalDB;Database={dbName};Integrated Security=True;TrustServerCertificate=True;";
+                    await using var conn = new SqlConnection(connStr);
+                    await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+                    // NVARCHAR(MAX): avoids SqlClient max 4000 for large Unicode parameters on batch INSERT.
+                    // Sql.txt parity target remains VARCHAR(5000); LocalDB uses MAX for client/driver limits only.
+                    await ExecuteNonQueryAsync(conn,
+                        "CREATE TABLE Notes (Id CHAR(10) PRIMARY KEY, Content NVARCHAR(MAX))", cancellationToken)
+                        .ConfigureAwait(false);
+
+                    setupSw.Stop();
+                    details["Step_Setup_Ms"] = setupSw.Elapsed.TotalMilliseconds;
+
+                    logger?.Log($"LocalDB: Inserting {rowCount} Notes rows with variable Content lengths...");
+                    var random = new Random(42);
+                    var values = new List<string>();
+                    for (var i = 0; i < rowCount; i++)
+                    {
+                        var contentLen = 100 + random.Next(1901);
+                        var content = new string('x', contentLen).Replace("'", "''");
+                        values.Add($"('{i}', '{content}')");
+                    }
+                    var valuesStr = string.Join(", ", values);
+                    var insertSw = Stopwatch.StartNew();
+                    using (ManualTestTraceScope.Step(trace, "BatchInsert", new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                           { ["rowCount"] = rowCount.ToString(System.Globalization.CultureInfo.InvariantCulture) }))
+                    {
+                        failedStep = "BatchInsert";
+                        await ExecuteNonQueryAsync(conn, $"INSERT INTO Notes (Id, Content) VALUES {valuesStr}",
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    insertSw.Stop();
+                    var insertMs = insertSw.Elapsed.TotalMilliseconds;
+                    details["Step_Insert_Ms"] = insertMs;
+                    details["Step_Insert_Count"] = rowCount;
+                    details["Avg_Insert_Ms"] = rowCount > 0 ? insertMs / rowCount : 0;
+                    details["ShardCount"] = 0;
+                    details["RowCount"] = rowCount;
+
+                    using (ManualTestTraceScope.Stage(trace, "AssertQueries"))
+                    {
+                        failedStage = "AssertQueries";
+                        var fullScanSw = Stopwatch.StartNew();
+                        using (ManualTestTraceScope.Step(trace, "QueryFullScanPreRebalance"))
+                        {
+                            failedStep = "QueryFullScanPreRebalance";
+                            var fullScanRows = await ExecuteScalarIntAsync(conn, "SELECT COUNT(*) FROM Notes", cancellationToken)
+                                .ConfigureAwait(false);
+                            fullScanSw.Stop();
+                            details["Step_Query_FullScan_Ms"] = fullScanSw.Elapsed.TotalMilliseconds;
+                            if (fullScanRows != rowCount)
+                                exceptions.Add($"Full scan expected {rowCount} rows, got {fullScanRows}");
+                        }
+
+                        var midId = rowCount / 2;
+                        var pkLookupSw = Stopwatch.StartNew();
+                        using (ManualTestTraceScope.Step(trace, "QueryPkLookupPreRebalance"))
+                        {
+                            failedStep = "QueryPkLookupPreRebalance";
+                            var pkRows = await ExecuteScalarIntAsync(conn, $"SELECT COUNT(*) FROM Notes WHERE Id = '{midId}'",
+                                    cancellationToken)
+                                .ConfigureAwait(false);
+                            pkLookupSw.Stop();
+                            details["Step_Query_PkLookup_Ms"] = pkLookupSw.Elapsed.TotalMilliseconds;
+                            if (pkRows != 1)
+                                exceptions.Add($"PK lookup Id={midId} expected 1 row, got {pkRows}");
+                        }
+                    }
+
+                    details["Step_Rebalance_Ms"] = 0.0; // N/A for LocalDB
+                    details["Step_Query_AfterRebalance_Ms"] = 0.0; // N/A
                 }
             }
 
-            var connStr = $"Server=(localdb)\\MSSQLLocalDB;Database={dbName};Integrated Security=True;TrustServerCertificate=True;";
-            await using var conn = new SqlConnection(connStr);
-            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-            await ExecuteNonQueryAsync(conn, "CREATE TABLE Notes (Id CHAR(10) PRIMARY KEY, Content NVARCHAR(5000))", cancellationToken).ConfigureAwait(false);
-
-            setupSw.Stop();
-            details["Step_Setup_Ms"] = setupSw.Elapsed.TotalMilliseconds;
-
-            logger?.Log($"LocalDB: Inserting {rowCount} Notes rows with variable Content lengths...");
-            var random = new Random(42);
-            var values = new List<string>();
-            for (var i = 0; i < rowCount; i++)
+            using (ManualTestTraceScope.Stage(trace, "Teardown"))
             {
-                var contentLen = 100 + random.Next(1901);
-                var content = new string('x', contentLen).Replace("'", "''");
-                values.Add($"('{i}', '{content}')");
-            }
-            var valuesStr = string.Join(", ", values);
-            var insertSw = Stopwatch.StartNew();
-            await ExecuteNonQueryAsync(conn, $"INSERT INTO Notes (Id, Content) VALUES {valuesStr}", cancellationToken).ConfigureAwait(false);
-            insertSw.Stop();
-            var insertMs = insertSw.Elapsed.TotalMilliseconds;
-            details["Step_Insert_Ms"] = insertMs;
-            details["Step_Insert_Count"] = rowCount;
-            details["Avg_Insert_Ms"] = rowCount > 0 ? insertMs / rowCount : 0;
-            details["ShardCount"] = 0;
-            details["RowCount"] = rowCount;
-
-            var fullScanSw = Stopwatch.StartNew();
-            var fullScanRows = await ExecuteScalarIntAsync(conn, "SELECT COUNT(*) FROM Notes", cancellationToken).ConfigureAwait(false);
-            fullScanSw.Stop();
-            details["Step_Query_FullScan_Ms"] = fullScanSw.Elapsed.TotalMilliseconds;
-            if (fullScanRows != rowCount)
-                exceptions.Add($"Full scan expected {rowCount} rows, got {fullScanRows}");
-
-            var midId = rowCount / 2;
-            var pkLookupSw = Stopwatch.StartNew();
-            var pkRows = await ExecuteScalarIntAsync(conn, $"SELECT COUNT(*) FROM Notes WHERE Id = '{midId}'", cancellationToken).ConfigureAwait(false);
-            pkLookupSw.Stop();
-            details["Step_Query_PkLookup_Ms"] = pkLookupSw.Elapsed.TotalMilliseconds;
-            if (pkRows != 1)
-                exceptions.Add($"PK lookup Id={midId} expected 1 row, got {pkRows}");
-
-            details["Step_Rebalance_Ms"] = 0.0; // N/A for LocalDB
-            details["Step_Query_AfterRebalance_Ms"] = 0.0; // N/A
-
-            await using (var masterConn = new SqlConnection(LocalDbMaster))
-            {
-                await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
-                using (var cmd = masterConn.CreateCommand())
+                failedStage = "Teardown";
+                failedStep = "DropDatabase";
+                await using (var masterConn = new SqlConnection(LocalDbMaster))
                 {
-                    cmd.CommandText = $"ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{dbName}]";
-                    await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    await masterConn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                    using (var cmd = masterConn.CreateCommand())
+                    {
+                        cmd.CommandText =
+                            $"ALTER DATABASE [{dbName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{dbName}]";
+                        await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+                    }
                 }
             }
         }
         catch (Exception ex)
         {
             exceptions.Add(ex.ToString());
+            failedStage ??= "Setup";
+            failedStep ??= "CreateDatabaseAndTable";
         }
 
         sw.Stop();
+
+        if (exceptions.Count > 0)
+        {
+            var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["localDbDatabase"] = dbName };
+            var hints = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["rowCount"] = rowCount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["desiredShards"] = desiredShards.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            };
+            ManualTestFailureSupport.WriteFailureIfEnabled(
+                trace,
+                logger,
+                "Sharding (VARCHAR)",
+                "localdb",
+                failedStage,
+                failedStep,
+                string.Join(Environment.NewLine, exceptions),
+                paths,
+                hints,
+                null);
+        }
 
         return new TestResult(
             "Sharding (VARCHAR)",
@@ -521,6 +717,14 @@ public static class LocalDbComparisons
         cmd.CommandText = sql;
         var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
         return result is int i ? i : Convert.ToInt32(result);
+    }
+
+    private static async Task<string?> ExecuteScalarStringAsync(SqlConnection conn, string sql, CancellationToken ct)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = sql;
+        var result = await cmd.ExecuteScalarAsync(ct).ConfigureAwait(false);
+        return result?.ToString();
     }
 
     private static IEnumerable<string> SplitStatements(string sql)

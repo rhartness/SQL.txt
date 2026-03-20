@@ -74,6 +74,15 @@ sqltxt query --db ./WikiDb --memory "SELECT * FROM Page"
 sqltxt query --db ./WikiDb "SELECT Id, Name FROM User WHERE Id = '1'"
 ```
 
+**Phase 4 (v1)** — `INNER JOIN` / `LEFT JOIN` with equi-`ON`, `WHERE` with `AND` and equality, `ORDER BY`, `GROUP BY` / `HAVING` with `COUNT` / `SUM` / `AVG` / `MIN` / `MAX`, and `IN (subquery)`, `EXISTS (…)`, scalar `(SELECT …)` in the select list (see [11-sql2023-mapping.md](architecture/11-sql2023-mapping.md)).
+
+```bash
+sqltxt query --db ./MyDb "SELECT a.Id FROM T a INNER JOIN U b ON a.X = b.Y"
+sqltxt query --db ./MyDb "SELECT Id FROM R WHERE A = 'x' AND B = 'y' ORDER BY SortKey ASC"
+sqltxt query --db ./MyDb "SELECT K, COUNT(*) AS C FROM G GROUP BY K HAVING COUNT(*) > 1"
+sqltxt query --db ./MyDb "SELECT Id FROM P WHERE Id IN (SELECT FId FROM C)"
+```
+
 ### script
 
 Executes a SQL script file (semicolon-separated statements).
